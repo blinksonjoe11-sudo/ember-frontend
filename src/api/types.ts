@@ -36,6 +36,9 @@ export interface Message {
   readAt?: string | null;
   deletedForEveryone?: boolean;
   editedAt?: string | null;
+  replyToId?: string | null;
+  replyBody?: string | null;
+  replySender?: string | null;
 }
 
 export interface Community {

@@ -58,13 +58,16 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
-  const [menuFor, setMenuFor] = useState<Message | null>(null); // message whose menu is open
+  const [menuFor, setMenuFor] = useState<Message | null>(null);
   const [headerMenu, setHeaderMenu] = useState(false);
+  const [editing, setEditing] = useState<Message | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout>>();
   const lastTypingSent = useRef(0);
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>();
-  const [editing, setEditing] = useState<Message | null>(null);
+  const touchStartX = useRef(0);
+  const swipingId = useRef<string | null>(null);
 
   const scrollDown = () => {
     requestAnimationFrame(() => {
@@ -101,6 +104,7 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
           return [...prev, {
             id: m.id, conversationId: m.conversationId, senderId: m.senderId,
             senderName: m.senderName, body: m.body, createdAt: m.createdAt,
+            replyToId: m.replyToId, replyBody: m.replyBody, replySender: m.replySender,
           }];
         });
         setPartnerTyping(false);
@@ -120,7 +124,6 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
         );
       }
 
-      // Someone deleted a message for everyone → show placeholder live.
       if (e.type === "message_deleted" && e.payload.conversationId === conversationId) {
         setMessages((prev) =>
           prev.map((m) => (m.id === e.payload.messageId ? { ...m, deletedForEveryone: true, body: "" } : m))
@@ -146,7 +149,7 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
     }
   };
 
- const send = async () => {
+  const send = async () => {
     const body = text.trim();
     if (!body || sending) return;
 
@@ -156,7 +159,6 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
       setSending(true);
       setEditing(null);
       setText("");
-      // optimistic
       setMessages((prev) =>
         prev.map((m) => (m.id === target.id ? { ...m, body, editedAt: new Date().toISOString() } : m))
       );
@@ -170,17 +172,22 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
       return;
     }
 
-    // Normal send
+    // Normal send (with optional reply)
     setSending(true);
     setText("");
+    const replyingTo = replyTo;
+    setReplyTo(null);
     const tempId = "temp-" + Date.now();
     setMessages((prev) => [...prev, {
       id: tempId, conversationId, senderId: user!.id, body,
       createdAt: new Date().toISOString(), readAt: null,
+      replyToId: replyingTo?.id,
+      replyBody: replyingTo?.body,
+      replySender: replyingTo?.senderId === user?.id ? "You" : replyingTo?.senderName,
     }]);
     scrollDown();
     try {
-      const res = await chatApi.send(conversationId, body);
+      const res = await chatApi.send(conversationId, body, replyingTo?.id);
       if (res.status === "held") {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         toast(res.message || "Message held for review.");
@@ -202,7 +209,24 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
   };
   const cancelPress = () => clearTimeout(longPressTimer.current);
 
-  // ----- delete actions -----
+  // ----- swipe to reply -----
+  const onTouchStartBubble = (m: Message, e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    swipingId.current = m.id;
+    startPress(m);
+  };
+  const onTouchMoveBubble = (e: React.TouchEvent) => {
+    cancelPress();
+    const dx = e.touches[0].clientX - touchStartX.current;
+    if (dx > 60 && swipingId.current) {
+      const m = messages.find((x) => x.id === swipingId.current);
+      if (m && !m.deletedForEveryone) setReplyTo(m);
+      swipingId.current = null;
+    }
+  };
+  const onTouchEndBubble = () => { cancelPress(); swipingId.current = null; };
+
+  // ----- delete -----
   const doDeleteForMe = async (m: Message) => {
     setMenuFor(null);
     setMessages((prev) => prev.filter((x) => x.id !== m.id));
@@ -211,17 +235,6 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
     } catch {
       toast("Could not delete.");
     }
-  };
-
-  const startEdit = (m: Message) => {
-    setMenuFor(null);
-    setEditing(m);
-    setText(m.body);
-  };
-
-  const cancelEdit = () => {
-    setEditing(null);
-    setText("");
   };
 
   const doDeleteForEveryone = async (m: Message) => {
@@ -236,6 +249,19 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
     }
   };
 
+  // ----- edit -----
+  const startEdit = (m: Message) => {
+    setMenuFor(null);
+    setReplyTo(null);
+    setEditing(m);
+    setText(m.body);
+  };
+  const cancelEdit = () => {
+    setEditing(null);
+    setText("");
+  };
+
+  // ----- clear chat -----
   const doClearChat = async () => {
     setHeaderMenu(false);
     try {
@@ -246,6 +272,21 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
       toast("Could not clear chat.");
     }
   };
+
+  // ----- scroll to replied message -----
+  const scrollToMessage = (id: string) => {
+    const el = document.getElementById("msg-" + id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("bubble-flash");
+      setTimeout(() => el.classList.remove("bubble-flash"), 1200);
+    }
+  };
+
+  const canEdit = (m: Message) =>
+    m.senderId === user?.id &&
+    !m.deletedForEveryone &&
+    Date.now() - new Date(m.createdAt).getTime() < 15 * 60 * 1000;
 
   return (
     <div className="chat-wrap">
@@ -283,12 +324,19 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
                   <div className="day-divider"><span>{dayLabel(m.createdAt)}</span></div>
                 )}
                 <div
+                  id={"msg-" + m.id}
                   className={`bubble ${mine ? "bubble-me" : "bubble-them"} ${deleted ? "bubble-deleted" : ""}`}
-                  onTouchStart={() => startPress(m)}
-                  onTouchEnd={cancelPress}
-                  onTouchMove={cancelPress}
+                  onTouchStart={(e) => onTouchStartBubble(m, e)}
+                  onTouchEnd={onTouchEndBubble}
+                  onTouchMove={onTouchMoveBubble}
                   onContextMenu={(e) => { e.preventDefault(); if (!deleted) setMenuFor(m); }}
                 >
+                  {m.replyToId && m.replyBody != null && (
+                    <div className="reply-quote" onClick={() => scrollToMessage(m.replyToId!)}>
+                      <span className="reply-quote-name">{m.replySender || "Reply"}</span>
+                      <span className="reply-quote-body">{m.replyBody || "message"}</span>
+                    </div>
+                  )}
                   {!mine && m.senderName && !deleted && (
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", marginBottom: 2 }}>
                       {m.senderName}
@@ -318,15 +366,14 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
       </div>
 
       {/* Message action menu */}
-     {menuFor && (
+      {menuFor && (
         <>
           <div className="menu-backdrop" onClick={() => setMenuFor(null)} />
           <div className="msg-sheet">
-            {menuFor.senderId === user?.id &&
-              !menuFor.deletedForEveryone &&
-              Date.now() - new Date(menuFor.createdAt).getTime() < 15 * 60 * 1000 && (
-                <button onClick={() => startEdit(menuFor)}>Edit</button>
-              )}
+            {!menuFor.deletedForEveryone && (
+              <button onClick={() => { setReplyTo(menuFor); setMenuFor(null); }}>Reply</button>
+            )}
+            {canEdit(menuFor) && <button onClick={() => startEdit(menuFor)}>Edit</button>}
             <button onClick={() => doDeleteForMe(menuFor)}>Delete for me</button>
             {menuFor.senderId === user?.id && (
               <button className="danger" onClick={() => doDeleteForEveryone(menuFor)}>
@@ -339,6 +386,14 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
       )}
 
       <div>
+        {replyTo && !editing && (
+          <div className="edit-bar">
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              Replying to {replyTo.senderId === user?.id ? "yourself" : replyTo.senderName}: {replyTo.body.slice(0, 40)}
+            </span>
+            <button onClick={() => setReplyTo(null)}>✕</button>
+          </div>
+        )}
         {editing && (
           <div className="edit-bar">
             <span>Editing message</span>

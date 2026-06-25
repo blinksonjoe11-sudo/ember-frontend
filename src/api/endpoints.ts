@@ -79,10 +79,10 @@ export const chatApi = {
   messages: (conversationId: string) =>
     api<{ messages: Message[] }>(`/api/conversations/${conversationId}/messages`),
 
-  send: (conversationId: string, body: string) =>
+ send: (conversationId: string, body: string, replyToId?: string) =>
     api<{ id: string; status: string; message?: string }>(
       `/api/conversations/${conversationId}/messages`,
-      { method: "POST", body: { body } }
+      { method: "POST", body: { body, replyToId } }
     ),
 
   block: (userId: string) => api(`/api/users/${userId}/block`, { method: "POST" }),
