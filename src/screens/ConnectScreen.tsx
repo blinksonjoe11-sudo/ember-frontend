@@ -1,56 +1,36 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { searchApi, chatApi, friendsApi } from "../api/endpoints";
 import type { User } from "../api/types";
 import Avatar from "../components/Avatar";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { ApiError } from "../api/client";
+import { useCachedData } from "../lib/useCachedData";
+import SkeletonList from "../components/Skeleton";
 
 export default function ConnectScreen({ onOpenChat }: { onOpenChat: (id: string, name: string) => void }) {
   const { user } = useAuth();
   const toast = useToast();
-  const isPlug = user?.role === "plug";
 
-  // Plugs only ever see users they're talking to via Messages; they don't browse.
-  // For users: tab = "friends" | "plugs".
   const [tab, setTab] = useState<"friends" | "plugs">("friends");
-  const [friends, setFriends] = useState<User[]>([]);
-  const [plugs, setPlugs] = useState<User[]>([]);
   const [q, setQ] = useState("");
   const [addUsername, setAddUsername] = useState("");
-  const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
 
-  const loadFriends = useCallback(async () => {
-    try {
-      const { friends } = await friendsApi.list();
-      setFriends(friends);
-    } catch {
-      setFriends([]);
-    }
-  }, []);
+  // Cached lists — survive tab switches, skeleton only on genuine first load.
+  const { data: friends, firstLoad: friendsFirst, refresh: refreshFriends } =
+    useCachedData<User[]>("friends", async () => (await friendsApi.list()).friends, []);
 
-  const loadPlugs = useCallback(async () => {
-    try {
-      const { results } = await searchApi.people(q);
-      setPlugs(results);
-    } catch {
-      setPlugs([]);
-    }
-  }, [q]);
-
-  useEffect(() => {
-    setLoading(true);
-    (tab === "friends" ? loadFriends() : loadPlugs()).finally(() => setLoading(false));
-  }, [tab, loadFriends, loadPlugs]);
+  const { data: plugs, firstLoad: plugsFirst, refresh: refreshPlugs } =
+    useCachedData<User[]>("plugs", async () => (await searchApi.people(q)).results, []);
 
   // Debounced plug search.
   useEffect(() => {
     if (tab !== "plugs") return;
-    const t = setTimeout(loadPlugs, 250);
+    const t = setTimeout(refreshPlugs, 250);
     return () => clearTimeout(t);
-  }, [q, tab, loadPlugs]);
+  }, [q, tab, refreshPlugs]);
 
   const addFriend = async () => {
     const uname = addUsername.trim();
@@ -60,7 +40,7 @@ export default function ConnectScreen({ onOpenChat }: { onOpenChat: (id: string,
       const { friend } = await friendsApi.add(uname);
       toast(`Added ${friend.name}`);
       setAddUsername("");
-      loadFriends();
+      refreshFriends();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not add friend.");
     } finally {
@@ -81,6 +61,7 @@ export default function ConnectScreen({ onOpenChat }: { onOpenChat: (id: string,
   };
 
   const list = tab === "friends" ? friends : plugs;
+  const firstLoad = tab === "friends" ? friendsFirst : plugsFirst;
 
   return (
     <div className="screen">
@@ -130,8 +111,8 @@ export default function ConnectScreen({ onOpenChat }: { onOpenChat: (id: string,
         </div>
       )}
 
-      {loading ? (
-        <div className="empty"><span className="spinner" style={{ margin: "0 auto" }} /></div>
+      {firstLoad ? (
+        <SkeletonList rows={6} />
       ) : list.length === 0 ? (
         <div className="empty">
           {tab === "friends"
