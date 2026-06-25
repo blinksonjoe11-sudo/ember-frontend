@@ -52,13 +52,13 @@ function dayKey(iso: string): string {
 }
 
 function typingText(typers: Record<string, string>, isGroup: boolean): string | null {
-    const names = Object.values(typers);
-    if (names.length === 0) return null;
-    if (!isGroup) return "typing…"; // DM: keep it simple
-    if (names.length === 1) return `${names[0]} is typing…`;
-    if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
-    return "Several people are typing…";
-  }
+  const names = Object.values(typers);
+  if (names.length === 0) return null;
+  if (!isGroup) return "typing…";
+  if (names.length === 1) return `${names[0]} is typing…`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+  return "Several people are typing…";
+}
 
 export default function ChatScreen({ conversationId, title, isGroup = false, onBack }: Props) {
   const { user } = useAuth();
@@ -67,22 +67,20 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
- // Map of userId -> name for everyone currently typing (group-aware).
   const [typers, setTypers] = useState<Record<string, string>>({});
   const typerTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [menuFor, setMenuFor] = useState<Message | null>(null);
   const [headerMenu, setHeaderMenu] = useState(false);
   const [editing, setEditing] = useState<Message | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [uploading, setUploading] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const typingTimeout = useRef<ReturnType<typeof setTimeout>>();
   const lastTypingSent = useRef(0);
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>();
   const touchStartX = useRef(0);
   const swipingId = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   const scrollDown = () => {
     requestAnimationFrame(() => {
@@ -123,7 +121,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
             replyToId: m.replyToId, replyBody: m.replyBody, replySender: m.replySender,
           }];
         });
-        
         scrollDown();
         setTypers((prev) => {
           const next = { ...prev };
@@ -182,7 +179,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     const body = text.trim();
     if (!body || sending) return;
 
-    // Edit mode
     if (editing) {
       const target = editing;
       setSending(true);
@@ -201,7 +197,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
       return;
     }
 
-    // Normal send (with optional reply)
     setSending(true);
     setText("");
     const replyingTo = replyTo;
@@ -235,9 +230,8 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
 
   const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // reset so the same file can be picked again
+    e.target.value = "";
     if (!file) return;
-
     if (!file.type.startsWith("image/")) {
       toast("Please choose an image.");
       return;
@@ -246,9 +240,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
       toast("Image must be 10 MB or smaller.");
       return;
     }
-
     setUploading(true);
-    // Optimistic local preview using a blob URL.
     const tempId = "temp-" + Date.now();
     const localUrl = URL.createObjectURL(file);
     setMessages((prev) => [...prev, {
@@ -257,7 +249,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
       createdAt: new Date().toISOString(), readAt: null,
     }]);
     scrollDown();
-
     try {
       const res = await chatApi.sendMedia(conversationId, file);
       setMessages((prev) =>
@@ -271,14 +262,43 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     }
   };
 
-  // ----- long-press (touch) -----
+  const pickFile = () => docInputRef.current?.click();
+
+  const onDocChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) {
+      toast("File must be 25 MB or smaller.");
+      return;
+    }
+    setUploading(true);
+    const tempId = "temp-" + Date.now();
+    setMessages((prev) => [...prev, {
+      id: tempId, conversationId, senderId: user!.id, body: "",
+      type: "file", mediaUrl: "", mediaName: file.name,
+      createdAt: new Date().toISOString(), readAt: null,
+    }]);
+    scrollDown();
+    try {
+      const res = await chatApi.sendMedia(conversationId, file);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl, type: res.type } : m))
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast("Could not send file.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const startPress = (m: Message) => {
     if (m.deletedForEveryone) return;
     longPressTimer.current = setTimeout(() => setMenuFor(m), 450);
   };
   const cancelPress = () => clearTimeout(longPressTimer.current);
 
-  // ----- swipe to reply -----
   const onTouchStartBubble = (m: Message, e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     swipingId.current = m.id;
@@ -295,7 +315,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   };
   const onTouchEndBubble = () => { cancelPress(); swipingId.current = null; };
 
-  // ----- delete -----
   const doDeleteForMe = async (m: Message) => {
     setMenuFor(null);
     setMessages((prev) => prev.filter((x) => x.id !== m.id));
@@ -318,7 +337,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     }
   };
 
-  // ----- edit -----
   const startEdit = (m: Message) => {
     setMenuFor(null);
     setReplyTo(null);
@@ -330,7 +348,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     setText("");
   };
 
-  // ----- clear chat -----
   const doClearChat = async () => {
     setHeaderMenu(false);
     try {
@@ -342,7 +359,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     }
   };
 
-  // ----- scroll to replied message -----
   const scrollToMessage = (id: string) => {
     const el = document.getElementById("msg-" + id);
     if (el) {
@@ -355,7 +371,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   const canEdit = (m: Message) =>
     m.senderId === user?.id &&
     !m.deletedForEveryone &&
-    (m.type === "text" || !m.type) &&   // only text messages can be edited
+    (m.type === "text" || !m.type) &&
     Date.now() - new Date(m.createdAt).getTime() < 15 * 60 * 1000;
 
   return (
@@ -426,6 +442,18 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
                           onClick={() => window.open(m.mediaUrl, "_blank")}
                           onLoad={scrollDown}
                         />
+                      ) : m.type === "file" ? (
+                        <a
+                          className="file-card"
+                          href={m.mediaUrl || undefined}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          download={m.mediaName}
+                        >
+                          <span className="file-icon">📄</span>
+                          <span className="file-name">{m.mediaName || "File"}</span>
+                          <span className="file-dl">⬇</span>
+                        </a>
                       ) : (
                         m.body
                       )}
@@ -447,7 +475,6 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
         )}
       </div>
 
-      {/* Message action menu */}
       {menuFor && (
         <>
           <div className="menu-backdrop" onClick={() => setMenuFor(null)} />
@@ -490,8 +517,17 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
             style={{ display: "none" }}
             onChange={onFileChosen}
           />
-          <button className="chat-attach" onClick={pickImage} disabled={uploading} aria-label="Attach">
+          <button className="chat-attach" onClick={pickImage} disabled={uploading} aria-label="Attach image">
             {uploading ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "📎"}
+          </button>
+          <input
+            ref={docInputRef}
+            type="file"
+            style={{ display: "none" }}
+            onChange={onDocChosen}
+          />
+          <button className="chat-attach" onClick={pickFile} disabled={uploading} aria-label="Attach file">
+            📁
           </button>
           <input
             className="input"
