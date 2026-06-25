@@ -42,7 +42,7 @@ export default function AuthScreen() {
   const doRegister = async () => {
     reset();
     const yr = parseInt(birthYear, 10);
-    if (!name || !email || password.length < 10 || !yr) {
+    if (!name || !email || password.length < 6 || !yr) {
       setError("Fill every field. Password needs 6+ characters.");
       return;
     }
@@ -114,7 +114,7 @@ export default function AuthScreen() {
   const doReset = async () => {
     reset();
     if (resetCode.length !== 6) { setError("Enter the 6-digit code."); return; }
-    if (newPassword.length < 10) { setError("Password needs 6+ characters."); return; }
+    if (newPassword.length < 6) { setError("Password needs 6+ characters."); return; }
     setBusy(true);
     try {
       await authApi.resetPassword(email, resetCode, newPassword);
