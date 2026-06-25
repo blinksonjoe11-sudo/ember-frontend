@@ -165,7 +165,7 @@ export default function AuthScreen() {
     return (
       <div className="center-screen">
         <h1 className="screen-title">Check your email</h1>
-        <p className="screen-sub">We sent a 6-digit code. Enter it below to confirm your account.</p>
+        <p className="screen-sub">We sent a 6-digit code. Enter it below to confirm your account. "Check spam too"</p>
         <div className="field">
           <input
             className="input"
