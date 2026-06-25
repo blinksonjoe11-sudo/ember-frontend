@@ -14,9 +14,9 @@ import Logo from "./components/Logo";
 interface OpenChat {
   conversationId: string;
   title: string;
+  isGroup: boolean;
 }
 
-// Shell renders inside the SocketProvider so it can read unread counts.
 function Shell() {
   const [tab, setTab] = useState<Tab>("connect");
   const [chat, setChat] = useState<OpenChat | null>(null);
@@ -27,12 +27,15 @@ function Shell() {
       <ChatScreen
         conversationId={chat.conversationId}
         title={chat.title}
+        isGroup={chat.isGroup}
         onBack={() => setChat(null)}
       />
     );
   }
 
-  const openChat = (conversationId: string, title: string) => setChat({ conversationId, title });
+  // DMs call openChat(id, title). Lounges call openChat(id, title, true).
+  const openChat = (conversationId: string, title: string, isGroup = false) =>
+    setChat({ conversationId, title, isGroup });
 
   return (
     <div className="app">

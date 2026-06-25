@@ -9,6 +9,7 @@ import Avatar from "../components/Avatar";
 interface Props {
   conversationId: string;
   title: string;
+  isGroup?: boolean;
   onBack: () => void;
 }
 
@@ -50,14 +51,25 @@ function dayKey(iso: string): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-export default function ChatScreen({ conversationId, title, onBack }: Props) {
+function typingText(typers: Record<string, string>, isGroup: boolean): string | null {
+    const names = Object.values(typers);
+    if (names.length === 0) return null;
+    if (!isGroup) return "typing…"; // DM: keep it simple
+    if (names.length === 1) return `${names[0]} is typing…`;
+    if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+    return "Several people are typing…";
+  }
+
+export default function ChatScreen({ conversationId, title, isGroup = false, onBack }: Props) {
   const { user } = useAuth();
   const { subscribe, setActiveConversation } = useSocketCtx();
   const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [partnerTyping, setPartnerTyping] = useState(false);
+ // Map of userId -> name for everyone currently typing (group-aware).
+  const [typers, setTypers] = useState<Record<string, string>>({});
+  const typerTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [menuFor, setMenuFor] = useState<Message | null>(null);
   const [headerMenu, setHeaderMenu] = useState(false);
   const [editing, setEditing] = useState<Message | null>(null);
@@ -107,15 +119,28 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
             replyToId: m.replyToId, replyBody: m.replyBody, replySender: m.replySender,
           }];
         });
-        setPartnerTyping(false);
+        
         scrollDown();
+        setTypers((prev) => {
+          const next = { ...prev };
+          delete next[m.senderId];
+          return next;
+        });
         chatApi.markRead(conversationId).catch(() => {});
       }
 
       if (e.type === "typing" && e.payload.conversationId === conversationId && e.payload.userId !== user?.id) {
-        setPartnerTyping(true);
-        clearTimeout(typingTimeout.current);
-        typingTimeout.current = setTimeout(() => setPartnerTyping(false), 3000);
+        const uid = e.payload.userId as string;
+        const name = (e.payload.name as string) || "Someone";
+        setTypers((prev) => ({ ...prev, [uid]: name }));
+        clearTimeout(typerTimers.current[uid]);
+        typerTimers.current[uid] = setTimeout(() => {
+          setTypers((prev) => {
+            const next = { ...prev };
+            delete next[uid];
+            return next;
+          });
+        }, 3000);
       }
 
       if (e.type === "read" && e.payload.conversationId === conversationId && e.payload.readerId !== user?.id) {
@@ -295,7 +320,9 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
         <Avatar name={title} size="sm" />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{title}</div>
-          {partnerTyping && <div style={{ fontSize: 12, color: "var(--accent)" }}>typing…</div>}
+          {typingText(typers, isGroup) && (
+            <div style={{ fontSize: 12, color: "var(--accent)" }}>{typingText(typers, isGroup)}</div>
+          )}
         </div>
         <div style={{ position: "relative" }}>
           <button className="chat-back" onClick={() => setHeaderMenu((v) => !v)} aria-label="Menu">⋯</button>
@@ -350,7 +377,7 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
                       <span className="bubble-time">
                         {m.editedAt && <span style={{ opacity: 0.7, marginRight: 4 }}>edited</span>}
                         {formatTime(m.createdAt)}
-                        {mine && (
+                        {mine && !isGroup && (
                           <span className={`tick ${m.readAt ? "read" : ""}`}>
                             {m.readAt ? " ✓✓" : " ✓"}
                           </span>

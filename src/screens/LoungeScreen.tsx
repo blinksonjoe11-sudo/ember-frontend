@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCachedData } from "../lib/useCachedData";
 import SkeletonList from "../components/Skeleton";
 
-export default function LoungeScreen({ onOpenChat }: { onOpenChat: (id: string, name: string) => void }) {
+export default function LoungeScreen({ onOpenChat }: { onOpenChat: (id: string, name: string, isGroup?: boolean) => void }) {
   const { user } = useAuth();
   const [joining, setJoining] = useState(false);
 
@@ -22,7 +22,7 @@ export default function LoungeScreen({ onOpenChat }: { onOpenChat: (id: string, 
     setJoining(true);
     try {
       const { conversationId } = await communityApi.join(c.id);
-      onOpenChat(conversationId, c.name);
+      onOpenChat(conversationId, c.name, true);
     } finally {
       setJoining(false);
     }
