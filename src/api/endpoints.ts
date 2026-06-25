@@ -68,8 +68,8 @@ export const searchApi = {
 
 // ---------- Messaging ----------
 export const chatApi = {
-  start: (targetUserId: string) =>
-    api<{ conversationId: string }>("/api/conversations", {
+ start: (targetUserId: string) =>
+    api<{ conversationId: string; messages: Message[] }>("/api/conversations", {
       method: "POST",
       body: { targetUserId },
     }),
@@ -92,6 +92,21 @@ export const chatApi = {
 
   markRead: (conversationId: string) =>
     api(`/api/conversations/${conversationId}/read`, { method: "POST" }),
+
+  deleteForMe: (messageId: string) =>
+    api(`/api/messages/${messageId}/delete-me`, { method: "POST" }),
+
+  deleteForEveryone: (messageId: string) =>
+    api(`/api/messages/${messageId}/delete-everyone`, { method: "POST" }),
+
+  clearChat: (conversationId: string) =>
+    api(`/api/conversations/${conversationId}/clear`, { method: "POST" }),
+
+  editMessage: (messageId: string, body: string) =>
+    api<{ ok: boolean; editedAt: string }>(`/api/messages/${messageId}/edit`, {
+      method: "POST",
+      body: { body },
+    }),
 };
 
 // ---------- Communities / lounges ----------

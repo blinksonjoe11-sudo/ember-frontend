@@ -1,33 +1,25 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect } from "react";
 import { chatApi } from "../api/endpoints";
 import type { Conversation } from "../api/types";
 import Avatar from "../components/Avatar";
 import { useSocketCtx } from "../context/SocketContext";
+import { useCachedData } from "../lib/useCachedData";
+import SkeletonList from "../components/Skeleton";
 
 export default function MessagesScreen({ onOpenChat }: { onOpenChat: (id: string, name: string) => void }) {
   const { subscribe, unreadByConversation } = useSocketCtx();
-  const [convs, setConvs] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    try {
-      const { conversations } = await chatApi.list();
-      setConvs(conversations);
-    } catch {
-      setConvs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: convs, firstLoad, refresh } = useCachedData<Conversation[]>(
+    "conversations",
+    async () => (await chatApi.list()).conversations,
+    []
+  );
 
-  useEffect(() => { load(); }, [load]);
-
-  // Refresh list on inbound messages (shared socket, single subscription).
   useEffect(() => {
     return subscribe((e) => {
-      if (e.type === "message") load();
+      if (e.type === "message") refresh();
     });
-  }, [subscribe, load]);
+  }, [subscribe, refresh]);
 
   return (
     <div className="screen">
@@ -36,8 +28,8 @@ export default function MessagesScreen({ onOpenChat }: { onOpenChat: (id: string
         <h1 className="screen-title">Messages</h1>
       </div>
 
-      {loading ? (
-        <div className="empty"><span className="spinner" style={{ margin: "0 auto" }} /></div>
+      {firstLoad ? (
+        <SkeletonList rows={5} />
       ) : convs.length === 0 ? (
         <div className="empty">No messages yet. Head to Connect to start a chat.</div>
       ) : (

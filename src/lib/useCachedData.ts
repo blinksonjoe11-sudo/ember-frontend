@@ -1,29 +1,32 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
-// Module-level cache — persists across unmounts (tab switches).
 const cache = new Map<string, any>();
 
 export function useCachedData<T>(key: string, fetcher: () => Promise<T>, initial: T) {
   const hasCache = cache.has(key);
   const [data, setData] = useState<T>(() => (hasCache ? cache.get(key) : initial));
-  // "first load" = we have nothing cached yet → show skeleton. Otherwise never.
   const [firstLoad, setFirstLoad] = useState(!hasCache);
+
+  // Keep the latest fetcher in a ref so it doesn't trigger the effect.
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
   const refresh = useCallback(async () => {
     try {
-      const result = await fetcher();
+      const result = await fetcherRef.current();
       cache.set(key, result);
       setData(result);
     } catch {
-      /* keep stale cache on error */
+      /* keep stale cache */
     } finally {
       setFirstLoad(false);
     }
-  }, [key, fetcher]);
+  }, [key]); // only depends on the stable key, NOT the fetcher
 
+  // Run once per key (on mount / when key changes), not every render.
   useEffect(() => {
-    refresh(); // show cached instantly (if any), refresh quietly in background
-  }, [refresh]);
+    refresh();
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { data, firstLoad, refresh, setData };
 }

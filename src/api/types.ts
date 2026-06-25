@@ -34,6 +34,8 @@ export interface Message {
   createdAt: string;
   status?: string;
   readAt?: string | null;
+  deletedForEveryone?: boolean;
+  editedAt?: string | null;
 }
 
 export interface Community {
