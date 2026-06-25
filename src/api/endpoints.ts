@@ -107,6 +107,9 @@ export const chatApi = {
       method: "POST",
       body: { body },
     }),
+
+    recording: (conversationId: string) =>
+    api(`/api/conversations/${conversationId}/recording`, { method: "POST" }),
     
   sendMedia: (conversationId: string, file: File) => {
     const form = new FormData();

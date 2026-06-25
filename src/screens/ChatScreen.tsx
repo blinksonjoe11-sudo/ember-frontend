@@ -60,6 +60,15 @@ function typingText(typers: Record<string, string>, isGroup: boolean): string | 
   return "Several people are typing…";
 }
 
+function recordingText(recorders: Record<string, string>, isGroup: boolean): string | null {
+  const names = Object.values(recorders);
+  if (names.length === 0) return null;
+  if (!isGroup) return "recording audio…";
+  if (names.length === 1) return `${names[0]} is recording…`;
+  if (names.length === 2) return `${names[0]} and ${names[1]} are recording…`;
+  return "Several people are recording…";
+}
+
 export default function ChatScreen({ conversationId, title, isGroup = false, onBack }: Props) {
   const { user } = useAuth();
   const { subscribe, setActiveConversation } = useSocketCtx();
@@ -82,6 +91,14 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const [attachMenu, setAttachMenu] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordSecs, setRecordSecs] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const [recorders, setRecorders] = useState<Record<string, string>>({});
+  const recorderTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
 
   const scrollDown = () => {
@@ -129,6 +146,11 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
           delete next[m.senderId];
           return next;
         });
+        setRecorders((prev) => {
+          const next = { ...prev };
+          delete next[m.senderId];
+          return next;
+        });
         chatApi.markRead(conversationId).catch(() => {});
       }
 
@@ -150,6 +172,20 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
         setMessages((prev) =>
           prev.map((m) => (m.senderId === user?.id ? { ...m, readAt: e.payload.readAt } : m))
         );
+      }
+
+      if (e.type === "recording" && e.payload.conversationId === conversationId && e.payload.userId !== user?.id) {
+        const uid = e.payload.userId as string;
+        const name = (e.payload.name as string) || "Someone";
+        setRecorders((prev) => ({ ...prev, [uid]: name }));
+        clearTimeout(recorderTimers.current[uid]);
+        recorderTimers.current[uid] = setTimeout(() => {
+          setRecorders((prev) => {
+            const next = { ...prev };
+            delete next[uid];
+            return next;
+          });
+        }, 2000);
       }
 
       if (e.type === "message_deleted" && e.payload.conversationId === conversationId) {
@@ -333,6 +369,77 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   };
 
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || "audio/webm" });
+        await uploadVoice(blob);
+      };
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+      setRecordSecs(0);
+      chatApi.recording(conversationId).catch(() => {}); // immediate
+      recordTimerRef.current = setInterval(() => {
+        setRecordSecs((s) => s + 1);
+        chatApi.recording(conversationId).catch(() => {}); // heartbeat
+      }, 1000);
+    } catch {
+      toast("Microphone access denied.");
+    }
+  };
+
+  const stopRecording = () => {
+    clearInterval(recordTimerRef.current);
+    setRecording(false);
+    mediaRecorderRef.current?.stop();
+  };
+
+  const cancelRecording = () => {
+    clearInterval(recordTimerRef.current);
+    setRecording(false);
+    audioChunksRef.current = [];
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== "inactive") {
+      mr.onstop = null as any; // don't upload
+      mr.stop();
+      mr.stream.getTracks().forEach((t) => t.stop());
+    }
+  };
+
+  const uploadVoice = async (blob: Blob) => {
+    setUploading(true);
+    const ext = blob.type.includes("mp4") ? "m4a" : "webm";
+    const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type });
+    const tempId = "temp-" + Date.now();
+    const localUrl = URL.createObjectURL(blob);
+    setMessages((prev) => [...prev, {
+      id: tempId, conversationId, senderId: user!.id, body: "",
+      type: "audio", mediaUrl: localUrl, mediaName: file.name,
+      createdAt: new Date().toISOString(), readAt: null,
+    }]);
+    scrollDown();
+    try {
+      const res = await chatApi.sendMedia(conversationId, file);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl, type: res.type } : m))
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast("Could not send voice note.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const fmtSecs = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+
   const startPress = (m: Message) => {
     if (m.deletedForEveryone) return;
     longPressTimer.current = setTimeout(() => setMenuFor(m), 450);
@@ -421,9 +528,11 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
         <Avatar name={title} size="sm" />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{title}</div>
-          {typingText(typers, isGroup) && (
+          {recordingText(recorders, isGroup) ? (
+            <div style={{ fontSize: 12, color: "var(--ember)" }}>🎤 {recordingText(recorders, isGroup)}</div>
+          ) : typingText(typers, isGroup) ? (
             <div style={{ fontSize: 12, color: "var(--accent)" }}>{typingText(typers, isGroup)}</div>
-          )}
+          ) : null}
         </div>
         <div style={{ position: "relative" }}>
           <button className="chat-back" onClick={() => setHeaderMenu((v) => !v)} aria-label="Menu">⋯</button>
@@ -490,6 +599,8 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
                           preload="metadata"
                           onLoadedData={scrollDown}
                         />
+                      ) : m.type === "audio" && m.mediaUrl ? (
+                        <audio src={m.mediaUrl} controls preload="metadata" className="bubble-audio" />
                       ) : m.type === "file" ? (
                         <a
                           className="file-card"
@@ -558,45 +669,60 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
           </div>
         )}
         <div className="chat-input">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={onFileChosen}
-          />
-          <button className="chat-attach" onClick={pickImage} disabled={uploading} aria-label="Attach image">
-            {uploading ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "📎"}
-          </button>
-          <input
-            ref={videoInputRef}
-            type="file"
-            accept="video/*"
-            style={{ display: "none" }}
-            onChange={onVideoChosen}
-          />
-          <button className="chat-attach" onClick={pickVideo} disabled={uploading} aria-label="Attach video">
-            🎥
-          </button>
-          <input
-            ref={docInputRef}
-            type="file"
-            style={{ display: "none" }}
-            onChange={onDocChosen}
-          />
-          <button className="chat-attach" onClick={pickFile} disabled={uploading} aria-label="Attach file">
-            📁
-          </button>
-          <input
-            className="input"
-            placeholder={editing ? "Edit message" : "Message"}
-            value={text}
-            onChange={(e) => onType(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-          />
-          <button className="chat-send" onClick={send} disabled={sending} aria-label="Send">
-            {editing ? "✓" : "↑"}
-          </button>
+          {/* Hidden inputs */}
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChosen} />
+          <input ref={videoInputRef} type="file" accept="video/*" style={{ display: "none" }} onChange={onVideoChosen} />
+          <input ref={docInputRef} type="file" style={{ display: "none" }} onChange={onDocChosen} />
+
+          {/* Attach + menu */}
+          <div style={{ position: "relative" }}>
+            <button
+              className="chat-attach"
+              onClick={() => setAttachMenu((v) => !v)}
+              disabled={uploading}
+              aria-label="Attach"
+            >
+              {uploading ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "＋"}
+            </button>
+            {attachMenu && (
+              <>
+                <div className="menu-backdrop" onClick={() => setAttachMenu(false)} />
+                <div className="attach-menu">
+                  <button onClick={() => { setAttachMenu(false); pickImage(); }}>🖼️ Photo</button>
+                  <button onClick={() => { setAttachMenu(false); pickVideo(); }}>🎥 Video</button>
+                  <button onClick={() => { setAttachMenu(false); pickFile(); }}>📎 File</button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {recording ? (
+            <div className="recording-bar">
+              <span className="rec-dot" />
+              <span className="rec-time">{fmtSecs(recordSecs)}</span>
+              <button className="rec-cancel" onClick={cancelRecording} aria-label="Cancel">✕</button>
+              <button className="chat-send" onClick={stopRecording} aria-label="Send voice">↑</button>
+            </div>
+          ) : (
+            <>
+              <input
+                className="input"
+                placeholder={editing ? "Edit message" : "Message"}
+                value={text}
+                onChange={(e) => onType(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+              />
+              {text.trim() || editing ? (
+                <button className="chat-send" onClick={send} disabled={sending} aria-label="Send">
+                  {editing ? "✓" : "↑"}
+                </button>
+              ) : (
+                <button className="chat-send" onClick={startRecording} disabled={uploading} aria-label="Record">
+                  🎤
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

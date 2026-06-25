@@ -3,7 +3,7 @@ import { WS_BASE } from "../api/client";
 import { getAccess } from "../lib/tokens";
 
 export interface WsEvent {
-  type: "message" | "notification" | "presence" | "typing" | "read" | "message_deleted" | "message_edited";
+  type: "message" | "notification" | "presence" | "typing" | "read" | "message_deleted" | "message_edited" | "recording";
   payload: any;
 }
 
