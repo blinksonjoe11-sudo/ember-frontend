@@ -742,11 +742,10 @@ a {
   padding: 4px 8px;
 }
 
-
 /* ---------- Reply quote ---------- */
 .reply-quote {
   border-left: 3px solid var(--accent);
-  background: rgba(0,0,0,0.18);
+  background: rgba(0, 0, 0, 0.18);
   border-radius: 6px;
   padding: 5px 9px;
   margin-bottom: 5px;
@@ -755,7 +754,11 @@ a {
   flex-direction: column;
   gap: 1px;
 }
-.reply-quote-name { font-size: 11px; font-weight: 700; color: var(--accent); }
+.reply-quote-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+}
 .reply-quote-body {
   font-size: 12.5px;
   opacity: 0.75;
@@ -764,11 +767,53 @@ a {
   text-overflow: ellipsis;
   max-width: 220px;
 }
-.bubble-me .reply-quote-name { color: #0a3a30; }
+.bubble-me .reply-quote-name {
+  color: #0a3a30;
+}
 
 /* Flash when scrolled to */
-.bubble-flash { animation: flash 1.2s ease; }
+.bubble-flash {
+  animation: flash 1.2s ease;
+}
+.bubble {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 @keyframes flash {
-  0%, 100% { box-shadow: none; }
-  30% { box-shadow: 0 0 0 3px var(--accent-soft); }
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  30% {
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+}
+
+/* ---------- Chat media ---------- */
+.bubble-image {
+  display: block;
+  max-width: 220px;
+  max-height: 280px;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  object-fit: cover;
+}
+.chat-attach {
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+.chat-attach:disabled {
+  opacity: 0.5;
 }

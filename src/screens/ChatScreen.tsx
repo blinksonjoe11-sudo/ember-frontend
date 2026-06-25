@@ -80,6 +80,9 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>();
   const touchStartX = useRef(0);
   const swipingId = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
 
   const scrollDown = () => {
     requestAnimationFrame(() => {
@@ -116,6 +119,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
           return [...prev, {
             id: m.id, conversationId: m.conversationId, senderId: m.senderId,
             senderName: m.senderName, body: m.body, createdAt: m.createdAt,
+            type: m.type, mediaUrl: m.mediaUrl, mediaName: m.mediaName,
             replyToId: m.replyToId, replyBody: m.replyBody, replySender: m.replySender,
           }];
         });
@@ -227,6 +231,46 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     }
   };
 
+  const pickImage = () => fileInputRef.current?.click();
+
+  const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so the same file can be picked again
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast("Please choose an image.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast("Image must be 10 MB or smaller.");
+      return;
+    }
+
+    setUploading(true);
+    // Optimistic local preview using a blob URL.
+    const tempId = "temp-" + Date.now();
+    const localUrl = URL.createObjectURL(file);
+    setMessages((prev) => [...prev, {
+      id: tempId, conversationId, senderId: user!.id, body: "",
+      type: "image", mediaUrl: localUrl, mediaName: file.name,
+      createdAt: new Date().toISOString(), readAt: null,
+    }]);
+    scrollDown();
+
+    try {
+      const res = await chatApi.sendMedia(conversationId, file);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl } : m))
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast("Could not send image.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // ----- long-press (touch) -----
   const startPress = (m: Message) => {
     if (m.deletedForEveryone) return;
@@ -311,6 +355,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   const canEdit = (m: Message) =>
     m.senderId === user?.id &&
     !m.deletedForEveryone &&
+    (m.type === "text" || !m.type) &&   // only text messages can be edited
     Date.now() - new Date(m.createdAt).getTime() < 15 * 60 * 1000;
 
   return (
@@ -373,7 +418,17 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
                     <span style={{ fontStyle: "italic", opacity: 0.7 }}>🚫 This message was deleted</span>
                   ) : (
                     <>
-                      {m.body}
+                      {m.type === "image" && m.mediaUrl ? (
+                        <img
+                          src={m.mediaUrl}
+                          alt={m.mediaName || "image"}
+                          className="bubble-image"
+                          onClick={() => window.open(m.mediaUrl, "_blank")}
+                          onLoad={scrollDown}
+                        />
+                      ) : (
+                        m.body
+                      )}
                       <span className="bubble-time">
                         {m.editedAt && <span style={{ opacity: 0.7, marginRight: 4 }}>edited</span>}
                         {formatTime(m.createdAt)}
@@ -428,6 +483,16 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
           </div>
         )}
         <div className="chat-input">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={onFileChosen}
+          />
+          <button className="chat-attach" onClick={pickImage} disabled={uploading} aria-label="Attach">
+            {uploading ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "📎"}
+          </button>
           <input
             className="input"
             placeholder={editing ? "Edit message" : "Message"}

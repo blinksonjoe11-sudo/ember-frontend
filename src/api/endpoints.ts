@@ -107,6 +107,15 @@ export const chatApi = {
       method: "POST",
       body: { body },
     }),
+    
+  sendMedia: (conversationId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api<{ id: string; type: string; mediaUrl: string; mediaName: string }>(
+      `/api/conversations/${conversationId}/media`,
+      { method: "POST", body: form, isForm: true }
+    );
+  },
 };
 
 // ---------- Communities / lounges ----------

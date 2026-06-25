@@ -31,6 +31,9 @@ export interface Message {
   senderId: string;
   senderName?: string;
   body: string;
+  type?: string;        
+  mediaUrl?: string;
+  mediaName?: string;
   createdAt: string;
   status?: string;
   readAt?: string | null;
