@@ -127,3 +127,15 @@ export const avatarApi = {
     });
   },
 };
+
+
+// ---------- Friends ----------
+export const friendsApi = {
+  add: (username: string) =>
+    api<{ ok: boolean; friend: User }>("/api/friends", {
+      method: "POST",
+      body: { username },
+    }),
+
+  list: () => api<{ friends: User[] }>("/api/friends"),
+};

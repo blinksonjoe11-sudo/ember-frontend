@@ -17,6 +17,7 @@ export default function ProfileScreen() {
   const [bio, setBio] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState("");
+  const [copied, setCopied] = useState(false);
 
   if (!user) return null;
 
@@ -35,6 +36,16 @@ export default function ProfileScreen() {
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const copyUsername = async () => {
+    try {
+      await navigator.clipboard.writeText(user.username);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast("Could not copy.");
     }
   };
 
@@ -87,6 +98,19 @@ export default function ProfileScreen() {
             {user.role === "plug" && status !== "approved" && <span className="badge badge-pending">Plug · {status}</span>}
           </div>
         </div>
+      </div>
+
+      {/* Username — share this so friends can add you */}
+      <div className="card" style={{ marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontSize: 12, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 4 }}>
+            Your username
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--accent)" }}>@{user.username}</div>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={copyUsername}>
+          {copied ? "Copied ✓" : "Copy"}
+        </button>
       </div>
 
       {/* Plug verification block */}

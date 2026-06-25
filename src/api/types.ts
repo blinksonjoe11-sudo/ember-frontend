@@ -7,6 +7,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  username: string;
   initials: string;
   city: string;
   role: Role;
@@ -14,6 +15,7 @@ export interface User {
   avatarUrl?: string;
   plugStatus?: PlugStatus;
   businessName?: string;
+  online?: boolean;
 }
 
 export interface Conversation {
