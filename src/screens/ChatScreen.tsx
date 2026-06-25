@@ -271,25 +271,25 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast("Please choose an image.");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast("Image must be 10 MB or smaller.");
-      return;
-    }
+    if (!file.type.startsWith("image/")) { toast("Please choose an image."); return; }
+    if (file.size > 10 * 1024 * 1024) { toast("Image must be 10 MB or smaller."); return; }
+
     setUploading(true);
+    const replyingTo = replyTo;          // ← capture
+    setReplyTo(null);                    // ← clear
     const tempId = "temp-" + Date.now();
     const localUrl = URL.createObjectURL(file);
     setMessages((prev) => [...prev, {
       id: tempId, conversationId, senderId: user!.id, body: "",
       type: "image", mediaUrl: localUrl, mediaName: file.name,
       createdAt: new Date().toISOString(), readAt: null,
+      replyToId: replyingTo?.id,                                    // ← add
+      replyBody: replyingTo?.body,                                  // ← add
+      replySender: replyingTo?.senderId === user?.id ? "You" : replyingTo?.senderName, // ← add
     }]);
     scrollDown();
     try {
-      const res = await chatApi.sendMedia(conversationId, file);
+      const res = await chatApi.sendMedia(conversationId, file, replyingTo?.id);  // ← pass
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl } : m))
       );
@@ -312,15 +312,20 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
       return;
     }
     setUploading(true);
+    const replyingTo = replyTo;
+    setReplyTo(null);
     const tempId = "temp-" + Date.now();
     setMessages((prev) => [...prev, {
       id: tempId, conversationId, senderId: user!.id, body: "",
       type: "file", mediaUrl: "", mediaName: file.name,
       createdAt: new Date().toISOString(), readAt: null,
+      replyToId: replyingTo?.id,
+      replyBody: replyingTo?.body,
+      replySender: replyingTo?.senderId === user?.id ? "You" : replyingTo?.senderName,
     }]);
     scrollDown();
     try {
-      const res = await chatApi.sendMedia(conversationId, file);
+      const res = await chatApi.sendMedia(conversationId, file, replyingTo?.id);
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl, type: res.type } : m))
       );
@@ -348,16 +353,21 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
       return;
     }
     setUploading(true);
+    const replyingTo = replyTo;          // ← capture
+    setReplyTo(null);  
     const tempId = "temp-" + Date.now();
     const localUrl = URL.createObjectURL(file);
     setMessages((prev) => [...prev, {
       id: tempId, conversationId, senderId: user!.id, body: "",
       type: "video", mediaUrl: localUrl, mediaName: file.name,
       createdAt: new Date().toISOString(), readAt: null,
+      replyToId: replyingTo?.id,                                    // ← add
+      replyBody: replyingTo?.body,                                  // ← add
+      replySender: replyingTo?.senderId === user?.id ? "You" : replyingTo?.senderName,
     }]);
     scrollDown();
     try {
-      const res = await chatApi.sendMedia(conversationId, file);
+      const res = await chatApi.sendMedia(conversationId, file, replyingTo?.id);
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl, type: res.type } : m))
       );
@@ -415,6 +425,8 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
 
   const uploadVoice = async (blob: Blob) => {
     setUploading(true);
+    const replyingTo = replyTo;          // ← capture
+    setReplyTo(null);
     const ext = blob.type.includes("mp4") ? "m4a" : "webm";
     const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type });
     const tempId = "temp-" + Date.now();
@@ -423,10 +435,13 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
       id: tempId, conversationId, senderId: user!.id, body: "",
       type: "audio", mediaUrl: localUrl, mediaName: file.name,
       createdAt: new Date().toISOString(), readAt: null,
+       replyToId: replyingTo?.id,                                    // ← add
+      replyBody: replyingTo?.body,                                  // ← add
+      replySender: replyingTo?.senderId === user?.id ? "You" : replyingTo?.senderName,
     }]);
     scrollDown();
     try {
-      const res = await chatApi.sendMedia(conversationId, file);
+       const res = await chatApi.sendMedia(conversationId, file, replyingTo?.id);
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl, type: res.type } : m))
       );

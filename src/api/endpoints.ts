@@ -111,9 +111,10 @@ export const chatApi = {
     recording: (conversationId: string) =>
     api(`/api/conversations/${conversationId}/recording`, { method: "POST" }),
     
-  sendMedia: (conversationId: string, file: File) => {
+  sendMedia: (conversationId: string, file: File, replyToId?: string) => {
     const form = new FormData();
     form.append("file", file);
+    if (replyToId) form.append("replyToId", replyToId);
     return api<{ id: string; type: string; mediaUrl: string; mediaName: string }>(
       `/api/conversations/${conversationId}/media`,
       { method: "POST", body: form, isForm: true }
