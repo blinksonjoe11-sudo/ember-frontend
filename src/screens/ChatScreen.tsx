@@ -81,6 +81,8 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
   const swipingId = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
 
   const scrollDown = () => {
     requestAnimationFrame(() => {
@@ -293,6 +295,44 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     }
   };
 
+
+  const pickVideo = () => videoInputRef.current?.click();
+
+  const onVideoChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("video/")) {
+      toast("Please choose a video.");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast("Video must be 20 MB or smaller.");
+      return;
+    }
+    setUploading(true);
+    const tempId = "temp-" + Date.now();
+    const localUrl = URL.createObjectURL(file);
+    setMessages((prev) => [...prev, {
+      id: tempId, conversationId, senderId: user!.id, body: "",
+      type: "video", mediaUrl: localUrl, mediaName: file.name,
+      createdAt: new Date().toISOString(), readAt: null,
+    }]);
+    scrollDown();
+    try {
+      const res = await chatApi.sendMedia(conversationId, file);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, id: res.id, mediaUrl: res.mediaUrl, type: res.type } : m))
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      toast("Could not send video.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+
   const startPress = (m: Message) => {
     if (m.deletedForEveryone) return;
     longPressTimer.current = setTimeout(() => setMenuFor(m), 450);
@@ -442,6 +482,14 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
                           onClick={() => window.open(m.mediaUrl, "_blank")}
                           onLoad={scrollDown}
                         />
+                      ) : m.type === "video" && m.mediaUrl ? (
+                        <video
+                          src={m.mediaUrl}
+                          className="bubble-video"
+                          controls
+                          preload="metadata"
+                          onLoadedData={scrollDown}
+                        />
                       ) : m.type === "file" ? (
                         <a
                           className="file-card"
@@ -519,6 +567,16 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
           />
           <button className="chat-attach" onClick={pickImage} disabled={uploading} aria-label="Attach image">
             {uploading ? <span className="spinner" style={{ width: 18, height: 18 }} /> : "📎"}
+          </button>
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/*"
+            style={{ display: "none" }}
+            onChange={onVideoChosen}
+          />
+          <button className="chat-attach" onClick={pickVideo} disabled={uploading} aria-label="Attach video">
+            🎥
           </button>
           <input
             ref={docInputRef}

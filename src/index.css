@@ -857,3 +857,13 @@ a {
   color: #042520;
   background: rgba(0, 0, 0, 0.12);
 }
+/* ---------- Chat video ---------- */
+.bubble-video {
+  display: block;
+  max-width: 240px;
+  max-height: 320px;
+  width: auto;
+  border-radius: 12px;
+  margin-bottom: 4px;
+  background: #000;
+}
