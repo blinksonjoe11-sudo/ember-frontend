@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useSocketCtx } from "../context/SocketContext";
 import { useToast } from "../context/ToastContext";
 import Avatar from "../components/Avatar";
+import VoiceNote from "../components/VoiceNote";
 
 interface Props {
   conversationId: string;
@@ -600,7 +601,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
                           onLoadedData={scrollDown}
                         />
                       ) : m.type === "audio" && m.mediaUrl ? (
-                        <audio src={m.mediaUrl} controls preload="metadata" className="bubble-audio" />
+                        <VoiceNote src={m.mediaUrl} mine={mine} />
                       ) : m.type === "file" ? (
                         <a
                           className="file-card"
