@@ -39,7 +39,7 @@ export default function ChatScreen({ conversationId, title, onBack }: Props) {
     (async () => {
       try {
         const { messages } = await chatApi.messages(conversationId);
-        setMessages(messages);
+        setMessages(messages || []);
         scrollDown();
         chatApi.markRead(conversationId).catch(() => {});
       } catch {
