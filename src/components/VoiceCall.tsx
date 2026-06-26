@@ -102,8 +102,23 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
 
+    pc.oniceconnectionstatechange = () => {
+      console.log("ICE:", pc.iceConnectionState);
+    };
+    pc.onicegatheringstatechange = () => {
+      console.log("ICE GATHERING:", pc.iceGatheringState);
+    };
+    pc.onsignalingstatechange = () => {
+      console.log("SIGNALING:", pc.signalingState);
+    };
+
     pc.onicecandidate = (e) => {
-      if (e.candidate) callApi.signal(conversationId, "ice", e.candidate).catch(() => {});
+      if (e.candidate) {
+        console.log("SEND ice");
+        callApi.signal(conversationId, "ice", e.candidate).catch(() => {});
+      } else {
+        console.log("ICE gathering complete");
+      }
     };
 
     pc.ontrack = (e) => {
