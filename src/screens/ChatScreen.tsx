@@ -15,7 +15,7 @@ interface Props {
   title: string;
   isGroup?: boolean;
   avatarUrl?: string;
-  onStartCall?: () => void;
+  onStartCall?: (type: "voice" | "video") => void;
   onBack: () => void;
 }
 
@@ -593,8 +593,11 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
         </div>
         <div style={{ position: "relative", display: "flex", gap: 5 }}>
           <button className="chat-back" onClick={() => setHeaderMenu((v) => !v)} aria-label="Menu">⋯</button>
-          {!isGroup && (
-          <button className="chat-back" onClick={onStartCall} aria-label="Call">📞</button>
+         {!isGroup && (
+          <>
+            <button className="chat-back" onClick={() => onStartCall?.("voice")} aria-label="Voice call">📞</button>
+            <button className="chat-back" onClick={() => onStartCall?.("video")} aria-label="Video call">🎥</button>
+          </>
         )}
           {headerMenu && (
             <>

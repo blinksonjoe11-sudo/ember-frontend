@@ -29,6 +29,7 @@ function Shell() {
     conversationId: string;
     peerName: string;
     mode: "outgoing" | "incoming";
+    callType: "voice" | "video";
     offer?: any;
   }>(null);
 
@@ -36,6 +37,8 @@ function Shell() {
   useEffect(() => {
     return subscribe((e) => {
       if (e.type === "call" && e.payload.signal === "offer") {
+        const offerData = e.payload.data;
+        const callType = offerData?.callType || "voice";
         setCall((prev) =>
           prev
             ? prev
@@ -43,7 +46,8 @@ function Shell() {
                 conversationId: e.payload.conversationId,
                 peerName: e.payload.fromName || "Unknown",
                 mode: "incoming",
-                offer: e.payload.data,
+                callType,
+                offer: offerData,
               }
         );
       }
@@ -66,13 +70,12 @@ function Shell() {
   const openChat = (conversationId: string, title: string, isGroup = false, avatarUrl?: string) =>
     setChat({ conversationId, title, isGroup, avatarUrl });
 
-  // The call overlay must be able to render over BOTH the chat screen and the
-  // tab screens, so it lives outside the early return.
   const callOverlay = call && (
     <VoiceCall
       conversationId={call.conversationId}
       peerName={call.peerName}
       mode={call.mode}
+      callType={call.callType}
       incomingOffer={call.offer}
       onClose={() => setCall(null)}
     />
@@ -86,8 +89,13 @@ function Shell() {
           title={chat.title}
           isGroup={chat.isGroup}
           avatarUrl={chat.avatarUrl}
-          onStartCall={() =>
-            setCall({ conversationId: chat.conversationId, peerName: chat.title, mode: "outgoing" })
+          onStartCall={(type: "voice" | "video") =>
+            setCall({
+              conversationId: chat.conversationId,
+              peerName: chat.title,
+              mode: "outgoing",
+              callType: type,
+            })
           }
           onBack={() => setChat(null)}
         />

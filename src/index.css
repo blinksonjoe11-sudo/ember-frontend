@@ -1147,3 +1147,71 @@ a {
 .call-muted {
   background: var(--surface-3);
 }
+/* ---------- Video call (WhatsApp-style) ---------- */
+.call-video {
+  background: #000;
+}
+
+/* The other person — fills the whole screen */
+.call-remote-video {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  background: #0a0a0a;
+}
+
+/* You — small floating preview, top-right */
+.call-local-video {
+  position: fixed;
+  top: calc(var(--safe-top) + 20px);
+  right: 16px;
+  width: 110px;
+  height: 155px;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  z-index: 5;
+  background: #1a1a1a;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  /* mirror your own preview, like a selfie cam */
+  transform: scaleX(-1);
+}
+
+/* Name + timer over the video, top-center */
+.call-video .call-card {
+  position: fixed;
+  top: calc(var(--safe-top) + 24px);
+  left: 0;
+  right: 0;
+  z-index: 4;
+  background: transparent;
+}
+.call-video .call-name {
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.call-video .call-status {
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* Controls floating at the bottom */
+.call-video .call-actions {
+  position: fixed;
+  bottom: calc(40px + var(--safe-bottom));
+  left: 0;
+  right: 0;
+  z-index: 6;
+  margin-top: 0;
+}
+.call-video .call-btn {
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px);
+  color: #fff;
+}
+.call-video .call-decline {
+  background: var(--danger);
+}
