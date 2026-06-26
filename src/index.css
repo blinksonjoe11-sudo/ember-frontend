@@ -37,6 +37,10 @@
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 html,
 body,
@@ -782,8 +786,13 @@ a {
   user-select: none;
   -webkit-touch-callout: none;
 }
-.chat-header { flex-shrink: 0; }
-.chat-input, .chat-wrap > div:last-child { flex-shrink: 0; }
+.chat-header {
+  flex-shrink: 0;
+}
+.chat-input,
+.chat-wrap > div:last-child {
+  flex-shrink: 0;
+}
 @keyframes flash {
   0%,
   100% {
