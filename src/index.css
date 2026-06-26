@@ -380,13 +380,15 @@ a {
 /* ---------- Chat ---------- */
 .chat-wrap {
   display: flex;
+  position: fixed;
   flex-direction: column;
+  inset: 0;
   height: 100vh;
   height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
   background: var(--bg);
-  overflow: hidden; /* contain children, prevent whole-page shift */
+  overflow: hidden;
 }
 .chat-header {
   display: flex;
@@ -399,7 +401,7 @@ a {
   position: sticky; /* stays at top */
   top: 0;
   z-index: 10;
-  flex-shrink: 0; /* never squish */
+  flex-shrink: 0;
 }
 .chat-back {
   width: 38px;
@@ -791,9 +793,7 @@ a {
   user-select: none;
   -webkit-touch-callout: none;
 }
-.chat-header {
-  flex-shrink: 0;
-}
+
 .chat-input,
 .chat-wrap > div:last-child {
   flex-shrink: 0;
