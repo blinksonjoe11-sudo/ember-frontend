@@ -23,6 +23,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const { user } = await authApi.me();
+      setUser(user);
+    } catch {
+      /* keep stale user */
+    }
+  }, []);
+
   // When the API client gives up on refreshing, drop the session.
   useEffect(() => {
     setAuthLostHandler(() => {
@@ -49,18 +58,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
+  // Refetch the current user whenever the app regains focus or becomes visible,
+  // so server-side changes (e.g. an admin approving a plug) appear without
+  // needing to log out and back in.
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.visibilityState === "visible") {
+        refreshUser();
+      }
+    };
+    document.addEventListener("visibilitychange", onFocus);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onFocus);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshUser]);
+
   const setSession = useCallback(async (r: AuthResult) => {
     await setTokens(r.accessToken, r.refreshToken);
     setUser(r.user);
-  }, []);
-
-  const refreshUser = useCallback(async () => {
-    try {
-      const { user } = await authApi.me();
-      setUser(user);
-    } catch {
-      /* keep stale user */
-    }
   }, []);
 
   return (
