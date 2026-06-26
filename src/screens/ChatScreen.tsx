@@ -104,7 +104,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
   const recordTimerRef = useRef<ReturnType<typeof setInterval>>();
   const [recorders, setRecorders] = useState<Record<string, string>>({});
   const recorderTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-
+  const [kbOffset, setKbOffset] = useState(0);
 
   const scrollDown = () => {
     requestAnimationFrame(() => {
@@ -130,6 +130,23 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
       }
     })();
   }, [conversationId]);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      // How much the keyboard covers: full height minus the visible viewport.
+      const covered = window.innerHeight - vv.height - vv.offsetTop;
+      setKbOffset(covered > 0 ? covered : 0);
+      scrollDown();
+    };
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onResize);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onResize);
+    };
+  }, []);
 
   useEffect(() => {
     return subscribe((e) => {
@@ -679,7 +696,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
         </>
       )}
 
-      <div>
+      <div style={{ transform: `translateY(-${kbOffset}px)`, transition: "transform 0.15s ease" }}>
         {replyTo && !editing && (
           <div className="edit-bar">
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
