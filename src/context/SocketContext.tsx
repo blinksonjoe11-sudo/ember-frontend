@@ -15,6 +15,7 @@ interface SocketCtx {
   totalUnread: number;
   markRead: (conversationId: string) => void;
   setActiveConversation: (id: string | null) => void;
+  seedUnread: (counts: Record<string, number>) => void;
 }
 
 const Ctx = createContext<SocketCtx>(null as any);
@@ -45,6 +46,18 @@ export function SocketProvider({ enabled, currentUserId, children }: {
       if (!prev[conversationId]) return prev;
       const next = { ...prev };
       delete next[conversationId];
+      return next;
+    });
+  }, []);
+
+  // Seed unread counts from the server (persisted, survives offline/refresh).
+  // Server count wins as the baseline; live socket increments build on top.
+  const seedUnread = useCallback((counts: Record<string, number>) => {
+    setUnread((prev) => {
+      const next = { ...prev };
+      for (const [id, n] of Object.entries(counts)) {
+        next[id] = Math.max(prev[id] || 0, n);
+      }
       return next;
     });
   }, []);
@@ -118,7 +131,7 @@ export function SocketProvider({ enabled, currentUserId, children }: {
   const totalUnread = Object.values(unreadByConversation).reduce((a, b) => a + b, 0);
 
   return (
-    <Ctx.Provider value={{ subscribe, unreadByConversation, totalUnread, markRead, setActiveConversation }}>
+    <Ctx.Provider value={{ subscribe, unreadByConversation, totalUnread, markRead, setActiveConversation, seedUnread }}>
       {children}
     </Ctx.Provider>
   );

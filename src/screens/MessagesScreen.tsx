@@ -7,19 +7,22 @@ import { useCachedData } from "../lib/useCachedData";
 import SkeletonList from "../components/Skeleton";
 
 export default function MessagesScreen({ onOpenChat }: { onOpenChat: (id: string, name: string) => void }) {
-  const { subscribe, unreadByConversation } = useSocketCtx();
+    const { subscribe, unreadByConversation, seedUnread } = useSocketCtx();
 
-  const { data: convs, firstLoad, refresh } = useCachedData<Conversation[]>(
+   const { data: convs, firstLoad, refresh } = useCachedData<Conversation[]>(
     "conversations",
     async () => (await chatApi.list()).conversations,
     []
   );
 
+  // Seed persisted unread counts into the socket context whenever the list updates.
   useEffect(() => {
-    return subscribe((e) => {
-      if (e.type === "message") refresh();
-    });
-  }, [subscribe, refresh]);
+    if (convs.length) {
+      const counts: Record<string, number> = {};
+      for (const c of convs) if (c.unread) counts[c.id] = c.unread;
+      seedUnread(counts);
+    }
+  }, [convs, seedUnread]);
 
   return (
     <div className="screen">
@@ -34,7 +37,7 @@ export default function MessagesScreen({ onOpenChat }: { onOpenChat: (id: string
         <div className="empty">No messages yet. Head to Connect to start a chat.</div>
       ) : (
         convs.map((c) => {
-          const unread = unreadByConversation[c.id] || 0;
+          const unread = Math.max(c.unread || 0, unreadByConversation[c.id] || 0);
           return (
             <button key={c.id} className="row" onClick={() => onOpenChat(c.id, c.partnerName)}>
               <Avatar name={c.partnerName} />

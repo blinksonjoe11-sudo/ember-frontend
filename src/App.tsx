@@ -10,6 +10,7 @@ import ProfileScreen from "./screens/ProfileScreen";
 import ChatScreen from "./screens/ChatScreen";
 import TabBar, { Tab } from "./components/TabBar";
 import Logo from "./components/Logo";
+import { chatApi } from "./api/endpoints";
 
 interface OpenChat {
   conversationId: string;
@@ -18,9 +19,23 @@ interface OpenChat {
 }
 
 function Shell() {
-  const [tab, setTab] = useState<Tab>("connect");
+   const [tab, setTab] = useState<Tab>("connect");
   const [chat, setChat] = useState<OpenChat | null>(null);
-  const { totalUnread } = useSocketCtx();
+  const { totalUnread, seedUnread } = useSocketCtx();
+
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { conversations } = await chatApi.list();
+        const counts: Record<string, number> = {};
+        for (const c of conversations) if (c.unread) counts[c.id] = c.unread;
+        seedUnread(counts);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, [seedUnread]);
 
   if (chat) {
     return (

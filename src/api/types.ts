@@ -23,6 +23,7 @@ export interface Conversation {
   partnerId: string;
   partnerName: string;
   lastMessage: string;
+  unread?: number;
 }
 
 export interface Message {
