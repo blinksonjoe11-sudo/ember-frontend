@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { callApi } from "../api/endpoints";
 import { useSocketCtx } from "../context/SocketContext";
 
-type CallState = "idle" | "calling" | "incoming" | "connected" | "ended";
+type CallState = "idle" | "calling" | "incoming" | "connecting" | "connected" | "ended";
 
 interface Props {
   conversationId: string;
@@ -63,7 +63,7 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
   useEffect(() => {
     if (state === "incoming") startRinging("incoming");
     else if (state === "calling") startRinging("outgoing");
-    else stopRinging();
+    else stopRinging();   // "connecting", "connected", "ended" all stop the ring
     return stopRinging;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
@@ -154,9 +154,10 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     callApi.signal(conversationId, "offer", { sdp: offer, callType }).catch(() => {});
   };
 
-  const acceptCall = async () => {
+ const acceptCall = async () => {
     if (startedRef.current) return;
     startedRef.current = true;
+    setState("connecting");   // ← instant feedback the moment you tap
     try {
       const pc = await createPeer();
       const sdp = incomingOffer?.sdp || incomingOffer;
@@ -168,6 +169,7 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
       callApi.signal(conversationId, "answer", answer).catch(() => {});
     } catch {
       startedRef.current = false;
+      setState("incoming"); // revert if it failed, so they can retry
     }
   };
 
@@ -269,6 +271,7 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
         <div className="call-status">
           {state === "calling" && (isVideo ? "Video calling…" : "Calling…")}
           {state === "incoming" && (isVideo ? "Incoming video call" : "Incoming voice call")}
+          {state === "connecting" && "Connecting…"}
           {state === "connected" && fmt(secs)}
           {state === "ended" && "Call ended"}
         </div>
