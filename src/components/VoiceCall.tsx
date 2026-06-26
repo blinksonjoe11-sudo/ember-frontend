@@ -70,7 +70,7 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
 
   // Auto-end the call if it isn't answered within 45 seconds.
   useEffect(() => {
-    if (state === "calling" || state === "incoming") {
+    if (state === "calling" || state === "incoming" || state === "connecting") {
       timeoutRef.current = setTimeout(() => {
         if (pcRef.current?.connectionState !== "connected") endCall(true);
       }, 45000);
@@ -239,10 +239,16 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
       if (signal === "answer" && pc) {
         if (pc.signalingState === "have-local-offer") {
           await pc.setRemoteDescription(new RTCSessionDescription(data)).catch(() => {});
+          // Flush ICE candidates that arrived before the answer was set.
+          for (const c of pendingIce.current) await pc.addIceCandidate(c).catch(() => {});
+          pendingIce.current = [];
         }
       } else if (signal === "ice") {
-        if (pc && pc.remoteDescription) await pc.addIceCandidate(data).catch(() => {});
-        else pendingIce.current.push(data);
+        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+          await pc.addIceCandidate(data).catch(() => {});
+        } else {
+          pendingIce.current.push(data);
+        }
       } else if (signal === "end") {
         endCall(false);
       }
@@ -270,14 +276,14 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
             className="call-remote-video"
             autoPlay
             playsInline
-            style={{ display: state === "connected" ? "block" : "none" }}
+            style={{ display: state === "connecting" || state === "connected" ? "block" : "none" }}
           />
           <video ref={localVideoRef} className="call-local-video" autoPlay playsInline muted />
         </>
       )}
 
       <div className="call-card">
-        {(!isVideo || state !== "connected") && (
+        {(!isVideo || (state !== "connected" && state !== "connecting")) && (
           <>
             <div className="call-avatar">{peerName.slice(0, 2).toUpperCase()}</div>
             <div className="call-name">{peerName}</div>
@@ -297,6 +303,9 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
               <button className="call-btn call-decline" onClick={() => endCall(true)} aria-label="Decline">📵</button>
               <button className="call-btn call-accept" onClick={acceptCall} aria-label="Accept">{isVideo ? "🎥" : "📞"}</button>
             </>
+          ) : state === "connecting" ? (
+            // While connecting, only show a cancel/hang-up button (network may hang).
+            <button className="call-btn call-decline" onClick={() => endCall(true)} aria-label="Cancel">📵</button>
           ) : state === "connected" ? (
             <>
               <button className={`call-btn ${muted ? "call-muted" : ""}`} onClick={toggleMute} aria-label="Mute">
