@@ -76,7 +76,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
 
 
   const { user } = useAuth();
-  const { subscribe, setActiveConversation } = useSocketCtx();
+  const { subscribe, setActiveConversation, markLoungeRead } = useSocketCtx();
   const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -124,6 +124,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
         setMessages((prev) => mergeMessages(prev, server || []));
         scrollDown();
         chatApi.markRead(conversationId).catch(() => {});
+        if (isGroup) markLoungeRead(conversationId);
       } catch {
         /* ignore */
       }

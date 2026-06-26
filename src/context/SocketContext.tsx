@@ -13,7 +13,9 @@ interface SocketCtx {
   subscribe: (fn: Listener) => () => void;
   unreadByConversation: Record<string, number>;
   totalUnread: number;
+  totalLoungeUnread: number;
   markRead: (conversationId: string) => void;
+  markLoungeRead: (conversationId: string) => void;
   setActiveConversation: (id: string | null) => void;
   seedUnread: (counts: Record<string, number>) => void;
 }
@@ -147,7 +149,7 @@ export function SocketProvider({ enabled, currentUserId, children }: {
   const totalLoungeUnread = Object.values(loungeUnread).reduce((a, b) => a + b, 0);
 
   return (
-    <Ctx.Provider value={{ subscribe, unreadByConversation, totalUnread, markRead, setActiveConversation, seedUnread }}>
+    <Ctx.Provider value={{ subscribe, unreadByConversation, totalUnread, totalLoungeUnread, markRead, markLoungeRead, setActiveConversation, seedUnread }}>
       {children}
     </Ctx.Provider>
   );

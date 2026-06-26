@@ -11,10 +11,12 @@ export default function TabBar({
   active,
   onChange,
   unread,
+  loungeUnread,
 }: {
   active: Tab;
   onChange: (t: Tab) => void;
   unread: number;
+  loungeUnread: number;
 }) {
   return (
     <nav className="tabbar">
@@ -28,6 +30,9 @@ export default function TabBar({
           {t.label}
           {t.key === "messages" && unread > 0 && (
             <span className="tab-badge">{unread > 9 ? "9+" : unread}</span>
+          )}
+          {t.key === "lounge" && loungeUnread > 0 && (
+            <span className="tab-badge">{loungeUnread > 9 ? "9+" : loungeUnread}</span>
           )}
         </button>
       ))}

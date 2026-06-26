@@ -22,8 +22,7 @@ interface OpenChat {
 function Shell() {
    const [tab, setTab] = useState<Tab>("connect");
   const [chat, setChat] = useState<OpenChat | null>(null);
-  const { totalUnread, seedUnread } = useSocketCtx();
-
+ const { totalUnread, totalLoungeUnread, seedUnread } = useSocketCtx();
 
   useEffect(() => {
     (async () => {
@@ -60,7 +59,7 @@ function Shell() {
       {tab === "messages" && <MessagesScreen onOpenChat={openChat} />}
       {tab === "lounge" && <LoungeScreen onOpenChat={openChat} />}
       {tab === "profile" && <ProfileScreen />}
-      <TabBar active={tab} onChange={setTab} unread={totalUnread} />
+     <TabBar active={tab} onChange={setTab} unread={totalUnread} loungeUnread={totalLoungeUnread} />
     </div>
   );
 }
