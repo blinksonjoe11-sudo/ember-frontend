@@ -105,6 +105,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
   const [recorders, setRecorders] = useState<Record<string, string>>({});
   const recorderTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [kbOffset, setKbOffset] = useState(0);
+  const [pressedId, setPressedId] = useState<string | null>(null);
 
   const scrollDown = () => {
     requestAnimationFrame(() => {
@@ -480,10 +481,17 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
 
   const startPress = (m: Message) => {
     if (m.deletedForEveryone) return;
-    longPressTimer.current = setTimeout(() => setMenuFor(m), 450);
+    setPressedId(m.id);
+    longPressTimer.current = setTimeout(() => {
+      setMenuFor(m);
+      setPressedId(null);
+      window.getSelection?.()?.removeAllRanges();
+    }, 450);
   };
-  const cancelPress = () => clearTimeout(longPressTimer.current);
-
+  const cancelPress = () => {
+    clearTimeout(longPressTimer.current);
+    setPressedId(null);
+  };
   const onTouchStartBubble = (m: Message, e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     swipingId.current = m.id;
@@ -604,7 +612,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
                   )}
                   <div
                     id={"msg-" + m.id}
-                    className={`bubble ${mine ? "bubble-me" : "bubble-them"} ${deleted ? "bubble-deleted" : ""}`}
+                    className={`bubble ${mine ? "bubble-me" : "bubble-them"} ${deleted ? "bubble-deleted" : ""} ${pressedId === m.id ? "bubble-pressed" : ""}`}
                     onTouchStart={(e) => onTouchStartBubble(m, e)}
                     onTouchEnd={onTouchEndBubble}
                     onTouchMove={onTouchMoveBubble}
