@@ -775,11 +775,15 @@ a {
 .bubble-flash {
   animation: flash 1.2s ease;
 }
-.bubble {
+.bubble,
+.bubble * {
   -webkit-user-select: none;
+  -moz-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
 }
+.chat-header { flex-shrink: 0; }
+.chat-input, .chat-wrap > div:last-child { flex-shrink: 0; }
 @keyframes flash {
   0%,
   100% {
