@@ -23,16 +23,16 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const startedRef = useRef(false);
   const ringRef = useRef<{ stop: () => void } | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
-    const remoteStreamRef = useRef<MediaStream | null>(null);
-    const resendRef = useRef<ReturnType<typeof setInterval>>();
 
   const startRinging = (kind: "incoming" | "outgoing") => {
     stopRinging();
@@ -68,10 +68,27 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  // Auto-end the call if it isn't answered within 45 seconds.
   useEffect(() => {
-    if (state === "connected" && isVideo && remoteVideoRef.current && remoteStreamRef.current) {
+    if (state === "calling" || state === "incoming") {
+      timeoutRef.current = setTimeout(() => {
+        if (pcRef.current?.connectionState !== "connected") endCall(true);
+      }, 45000);
+    }
+    return () => clearTimeout(timeoutRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  // Attach streams to the video elements whenever they or the state change.
+  useEffect(() => {
+    if (!isVideo) return;
+    if (remoteVideoRef.current && remoteStreamRef.current) {
       remoteVideoRef.current.srcObject = remoteStreamRef.current;
       remoteVideoRef.current.play().catch(() => {});
+    }
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+      localVideoRef.current.play().catch(() => {});
     }
   }, [state, isVideo]);
 
@@ -80,7 +97,7 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     try {
       const turn = await callApi.turn();
       if (Array.isArray(turn) && turn.length) iceServers = turn;
-    } catch { /* fall back */ }
+    } catch { /* fall back to STUN */ }
 
     const pc = new RTCPeerConnection({ iceServers });
     pcRef.current = pc;
@@ -90,7 +107,6 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     };
 
     pc.ontrack = (e) => {
-      console.log("ONTRACK:", e.track.kind, "streams:", e.streams.length);
       const [stream] = e.streams;
       remoteStreamRef.current = stream;
       if (remoteAudioRef.current) {
@@ -99,12 +115,16 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
       }
       if (remoteVideoRef.current && isVideo) {
         remoteVideoRef.current.srcObject = stream;
-        remoteVideoRef.current.play().catch((err) => console.log("remote play fail:", err));
+        remoteVideoRef.current.play().catch(() => {});
       }
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") { setState("connected"); startTimer(); }
+      if (pc.connectionState === "connected") {
+        clearTimeout(timeoutRef.current);
+        setState("connected");
+        startTimer();
+      }
       if (pc.connectionState === "failed" || pc.connectionState === "disconnected") endCall(false);
     };
 
@@ -146,16 +166,14 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       callApi.signal(conversationId, "answer", answer).catch(() => {});
-      console.log("ACCEPT video: answer sent");
-    } catch (err) {
-      console.error("ACCEPT FAILED:", err);   // ← expose the error
-      startedRef.current = false;             // ← allow retry
+    } catch {
+      startedRef.current = false;
     }
   };
 
- const endCall = (notify = true) => {
+  const endCall = (notify = true) => {
     stopRinging();
-    clearInterval(resendRef.current);
+    clearTimeout(timeoutRef.current);
     if (notify) callApi.signal(conversationId, "end", null).catch(() => {});
     clearInterval(timerRef.current);
     pcRef.current?.close();
@@ -186,7 +204,6 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     const newTrack = newStream.getVideoTracks()[0];
     const sender = pc.getSenders().find((s) => s.track?.kind === "video");
     if (sender) await sender.replaceTrack(newTrack);
-    // swap local preview + stop old video track
     const old = localStreamRef.current?.getVideoTracks()[0];
     old?.stop();
     if (localStreamRef.current) {
@@ -229,14 +246,17 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     <div className={`call-overlay ${isVideo ? "call-video" : ""}`}>
       <audio ref={remoteAudioRef} autoPlay />
 
-      {isVideo && state === "connected" && (
+      {isVideo && (
         <>
-          <video ref={remoteVideoRef} className="call-remote-video" autoPlay playsInline />
+          <video
+            ref={remoteVideoRef}
+            className="call-remote-video"
+            autoPlay
+            playsInline
+            style={{ display: state === "connected" ? "block" : "none" }}
+          />
           <video ref={localVideoRef} className="call-local-video" autoPlay playsInline muted />
         </>
-      )}
-      {isVideo && state !== "connected" && (
-        <video ref={localVideoRef} className="call-local-video" autoPlay playsInline muted />
       )}
 
       <div className="call-card">
@@ -256,26 +276,26 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
         <div className="call-actions">
           {state === "incoming" ? (
             <>
-              <button className="call-btn call-decline" onClick={() => endCall(true)}>✕</button>
-              <button className="call-btn call-accept" onClick={acceptCall}>{isVideo ? "🎥" : "📞"}</button>
+              <button className="call-btn call-decline" onClick={() => endCall(true)} aria-label="Decline">📵</button>
+              <button className="call-btn call-accept" onClick={acceptCall} aria-label="Accept">{isVideo ? "🎥" : "📞"}</button>
             </>
           ) : state === "connected" ? (
             <>
-              <button className={`call-btn ${muted ? "call-muted" : ""}`} onClick={toggleMute}>
+              <button className={`call-btn ${muted ? "call-muted" : ""}`} onClick={toggleMute} aria-label="Mute">
                 {muted ? "🔇" : "🎤"}
               </button>
               {isVideo && (
-                <button className={`call-btn ${camOff ? "call-muted" : ""}`} onClick={toggleCam}>
+                <button className={`call-btn ${camOff ? "call-muted" : ""}`} onClick={toggleCam} aria-label="Camera">
                   {camOff ? "📷" : "🎥"}
                 </button>
               )}
               {isVideo && (
-                <button className="call-btn" onClick={flipCam}>🔄</button>
+                <button className="call-btn" onClick={flipCam} aria-label="Flip camera">🔄</button>
               )}
-              <button className="call-btn call-decline" onClick={() => endCall(true)}>✕</button>
+              <button className="call-btn call-decline" onClick={() => endCall(true)} aria-label="End call">📵</button>
             </>
           ) : state === "calling" ? (
-            <button className="call-btn call-decline" onClick={() => endCall(true)}>✕</button>
+            <button className="call-btn call-decline" onClick={() => endCall(true)} aria-label="Cancel">📵</button>
           ) : null}
         </div>
       </div>

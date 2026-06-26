@@ -10,7 +10,7 @@ import ProfileScreen from "./screens/ProfileScreen";
 import ChatScreen from "./screens/ChatScreen";
 import TabBar, { Tab } from "./components/TabBar";
 import Logo from "./components/Logo";
-import { chatApi } from "./api/endpoints";
+import { chatApi, callApi } from "./api/endpoints";
 import VoiceCall from "./components/VoiceCall";
 
 interface OpenChat {
@@ -23,7 +23,8 @@ interface OpenChat {
 function Shell() {
   const [tab, setTab] = useState<Tab>("connect");
   const [chat, setChat] = useState<OpenChat | null>(null);
-  const { totalUnread, totalLoungeUnread, seedUnread, subscribe } = useSocketCtx();
+   const { totalUnread, totalLoungeUnread, seedUnread, subscribe } = useSocketCtx();
+  const { user } = useAuth();
 
   const [call, setCall] = useState<null | {
     conversationId: string;
@@ -37,6 +38,7 @@ function Shell() {
   useEffect(() => {
     return subscribe((e) => {
       if (e.type === "call" && e.payload.signal === "offer") {
+        if (e.payload.fromId === user?.id) return;   // ← ignore my own offer
         const offerData = e.payload.data;
         const callType = offerData?.callType || "voice";
         setCall((prev) =>
@@ -52,7 +54,7 @@ function Shell() {
         );
       }
     });
-  }, [subscribe]);
+  }, [subscribe, user?.id]);
 
   useEffect(() => {
     (async () => {
@@ -66,6 +68,34 @@ function Shell() {
       }
     })();
   }, [seedUnread]);
+
+  // When the app opens or regains focus, check for a pending incoming call
+  // (e.g. one that arrived while the app was closed, surfaced via push).
+  useEffect(() => {
+    const checkPending = async () => {
+      if (document.visibilityState !== "visible") return;
+      if (call) return; // already in a call
+      try {
+        const p = await callApi.pending();
+        if (p.pending && p.fromId !== user?.id) {
+          setCall({
+            conversationId: p.conversationId!,
+            peerName: p.fromName || "Unknown",
+            mode: "incoming",
+            callType: p.data?.callType || "voice",
+            offer: p.data,
+          });
+        }
+      } catch { /* ignore */ }
+    };
+    checkPending();
+    document.addEventListener("visibilitychange", checkPending);
+    window.addEventListener("focus", checkPending);
+    return () => {
+      document.removeEventListener("visibilitychange", checkPending);
+      window.removeEventListener("focus", checkPending);
+    };
+  }, [call, user?.id]);
 
   const openChat = (conversationId: string, title: string, isGroup = false, avatarUrl?: string) =>
     setChat({ conversationId, title, isGroup, avatarUrl });
