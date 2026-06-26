@@ -120,8 +120,16 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     const pc = await createPeer();
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    // Include callType so the callee knows whether to show video.
-    callApi.signal(conversationId, "offer", { sdp: offer, callType }).catch(() => {});
+    const send = () => callApi.signal(conversationId, "offer", { sdp: offer, callType }).catch(() => {});
+    send();
+    // Re-send the offer every 3s while still ringing, so a callee who just
+    // opened the app (from a push) still receives it.
+    const resend = setInterval(() => {
+      if (pcRef.current?.connectionState === "connected") { clearInterval(resend); return; }
+      send();
+    }, 3000);
+    // stop after 45s (call timed out)
+    setTimeout(() => clearInterval(resend), 45000);
   };
 
   const acceptCall = async () => {

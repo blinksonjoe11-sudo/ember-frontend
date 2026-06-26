@@ -1,6 +1,10 @@
 /* Firebase messaging service worker — handles background push */
-importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js");
+importScripts(
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js",
+);
+importScripts(
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js",
+);
 
 firebase.initializeApp({
   apiKey: "AIzaSyCO1peBn79UVHpYsB_Yi30CEBVQXK4A_uY",
@@ -26,5 +30,15 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow("/"));
+  event.waitUntil(
+    clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((list) => {
+        // Focus an existing window if open, else open a new one.
+        for (const client of list) {
+          if ("focus" in client) return client.focus();
+        }
+        if (clients.openWindow) return clients.openWindow("/");
+      }),
+  );
 });
