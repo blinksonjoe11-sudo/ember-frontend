@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { useCachedData } from "../lib/useCachedData";
 import SkeletonList from "../components/Skeleton";
 
-export default function LoungeScreen({ onOpenChat }: { onOpenChat: (id: string, name: string, isGroup?: boolean) => void }) {
+export default function LoungeScreen({ onOpenChat }: { onOpenChat: (id: string, name: string, isGroup?: boolean, avatarUrl?: string) => void }) {
   const { user } = useAuth();
   const [joining, setJoining] = useState(false);
 

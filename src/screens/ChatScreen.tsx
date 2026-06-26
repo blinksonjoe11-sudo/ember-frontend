@@ -11,8 +11,10 @@ interface Props {
   conversationId: string;
   title: string;
   isGroup?: boolean;
+  avatarUrl?: string;
   onBack: () => void;
 }
+
 
 function mergeMessages(local: Message[], incoming: Message[]): Message[] {
   const byId = new Map<string, Message>();
@@ -70,7 +72,9 @@ function recordingText(recorders: Record<string, string>, isGroup: boolean): str
   return "Several people are recording…";
 }
 
-export default function ChatScreen({ conversationId, title, isGroup = false, onBack }: Props) {
+export default function ChatScreen({ conversationId, title, isGroup = false, avatarUrl, onBack }: Props) {
+
+
   const { user } = useAuth();
   const { subscribe, setActiveConversation } = useSocketCtx();
   const toast = useToast();
@@ -541,7 +545,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
     <div className="chat-wrap">
       <div className="chat-header">
         <button className="chat-back" onClick={onBack} aria-label="Back">‹</button>
-        <Avatar name={title} size="sm" />
+        <Avatar name={title}  url={avatarUrl} size="sm" />
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{title}</div>
           {recordingText(recorders, isGroup) ? (
@@ -567,7 +571,7 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
         {messages.length === 0 ? (
           <div className="empty">Say hello.</div>
         ) : (
-          messages.map((m, i) => {
+         messages.map((m, i) => {
             const mine = m.senderId === user?.id;
             const showDivider = i === 0 || dayKey(m.createdAt) !== dayKey(messages[i - 1].createdAt);
             const deleted = m.deletedForEveryone;
@@ -576,73 +580,78 @@ export default function ChatScreen({ conversationId, title, isGroup = false, onB
                 {showDivider && (
                   <div className="day-divider"><span>{dayLabel(m.createdAt)}</span></div>
                 )}
-                <div
-                  id={"msg-" + m.id}
-                  className={`bubble ${mine ? "bubble-me" : "bubble-them"} ${deleted ? "bubble-deleted" : ""}`}
-                  onTouchStart={(e) => onTouchStartBubble(m, e)}
-                  onTouchEnd={onTouchEndBubble}
-                  onTouchMove={onTouchMoveBubble}
-                  onContextMenu={(e) => { e.preventDefault(); if (!deleted) setMenuFor(m); }}
-                >
-                  {m.replyToId && m.replyBody != null && (
-                    <div className="reply-quote" onClick={() => scrollToMessage(m.replyToId!)}>
-                      <span className="reply-quote-name">{m.replySender || "Reply"}</span>
-                      <span className="reply-quote-body">{m.replyBody || "message"}</span>
-                    </div>
+                <div className={`bubble-row ${mine ? "row-mine" : "row-them"}`}>
+                  {isGroup && !mine && (
+                    <Avatar name={m.senderName || "?"} url={m.senderAvatar} size="sm" />
                   )}
-                  {!mine && m.senderName && !deleted && (
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", marginBottom: 2 }}>
-                      {m.senderName}
-                    </div>
-                  )}
-                  {deleted ? (
-                    <span style={{ fontStyle: "italic", opacity: 0.7 }}>🚫 This message was deleted</span>
-                  ) : (
-                    <>
-                      {m.type === "image" && m.mediaUrl ? (
-                        <img
-                          src={m.mediaUrl}
-                          alt={m.mediaName || "image"}
-                          className="bubble-image"
-                          onClick={() => window.open(m.mediaUrl, "_blank")}
-                          onLoad={scrollDown}
-                        />
-                      ) : m.type === "video" && m.mediaUrl ? (
-                        <video
-                          src={m.mediaUrl}
-                          className="bubble-video"
-                          controls
-                          preload="metadata"
-                          onLoadedData={scrollDown}
-                        />
-                      ) : m.type === "audio" && m.mediaUrl ? (
-                        <VoiceNote src={m.mediaUrl} mine={mine} />
-                      ) : m.type === "file" ? (
-                        <a
-                          className="file-card"
-                          href={m.mediaUrl || undefined}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={m.mediaName}
-                        >
-                          <span className="file-icon">📄</span>
-                          <span className="file-name">{m.mediaName || "File"}</span>
-                          <span className="file-dl">⬇</span>
-                        </a>
-                      ) : (
-                        m.body
-                      )}
-                      <span className="bubble-time">
-                        {m.editedAt && <span style={{ opacity: 0.7, marginRight: 4 }}>edited</span>}
-                        {formatTime(m.createdAt)}
-                        {mine && !isGroup && (
-                          <span className={`tick ${m.readAt ? "read" : ""}`}>
-                            {m.readAt ? " ✓✓" : " ✓"}
-                          </span>
+                  <div
+                    id={"msg-" + m.id}
+                    className={`bubble ${mine ? "bubble-me" : "bubble-them"} ${deleted ? "bubble-deleted" : ""}`}
+                    onTouchStart={(e) => onTouchStartBubble(m, e)}
+                    onTouchEnd={onTouchEndBubble}
+                    onTouchMove={onTouchMoveBubble}
+                    onContextMenu={(e) => { e.preventDefault(); if (!deleted) setMenuFor(m); }}
+                  >
+                    {m.replyToId && m.replyBody != null && (
+                      <div className="reply-quote" onClick={() => scrollToMessage(m.replyToId!)}>
+                        <span className="reply-quote-name">{m.replySender || "Reply"}</span>
+                        <span className="reply-quote-body">{m.replyBody || "message"}</span>
+                      </div>
+                    )}
+                    {!mine && m.senderName && !deleted && (
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", marginBottom: 2 }}>
+                        {m.senderName}
+                      </div>
+                    )}
+                    {deleted ? (
+                      <span style={{ fontStyle: "italic", opacity: 0.7 }}>🚫 This message was deleted</span>
+                    ) : (
+                      <>
+                        {m.type === "image" && m.mediaUrl ? (
+                          <img
+                            src={m.mediaUrl}
+                            alt={m.mediaName || "image"}
+                            className="bubble-image"
+                            onClick={() => window.open(m.mediaUrl, "_blank")}
+                            onLoad={scrollDown}
+                          />
+                        ) : m.type === "video" && m.mediaUrl ? (
+                          <video
+                            src={m.mediaUrl}
+                            className="bubble-video"
+                            controls
+                            preload="metadata"
+                            onLoadedData={scrollDown}
+                          />
+                        ) : m.type === "audio" && m.mediaUrl ? (
+                          <VoiceNote src={m.mediaUrl} mine={mine} />
+                        ) : m.type === "file" ? (
+                          <a
+                            className="file-card"
+                            href={m.mediaUrl || undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download={m.mediaName}
+                          >
+                            <span className="file-icon">📄</span>
+                            <span className="file-name">{m.mediaName || "File"}</span>
+                            <span className="file-dl">⬇</span>
+                          </a>
+                        ) : (
+                          m.body
                         )}
-                      </span>
-                    </>
-                  )}
+                        <span className="bubble-time">
+                          {m.editedAt && <span style={{ opacity: 0.7, marginRight: 4 }}>edited</span>}
+                          {formatTime(m.createdAt)}
+                          {mine && !isGroup && (
+                            <span className={`tick ${m.readAt ? "read" : ""}`}>
+                              {m.readAt ? " ✓✓" : " ✓"}
+                            </span>
+                          )}
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </Fragment>
             );

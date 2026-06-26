@@ -35,6 +35,9 @@ export function SocketProvider({ enabled, currentUserId, children }: {
   const seenMsgIds = useRef<Set<string>>(new Set());
   const recentlyRead = useRef<Set<string>>(new Set());
   const [unreadByConversation, setUnread] = useState<Record<string, number>>({});
+  const [loungeUnread, setLoungeUnread] = useState<Record<string, number>>({});
+
+
 
   const subscribe = useCallback((fn: Listener) => {
     listeners.current.add(fn);
@@ -44,6 +47,15 @@ export function SocketProvider({ enabled, currentUserId, children }: {
   const markRead = useCallback((conversationId: string) => {
     recentlyRead.current.add(conversationId);
     setUnread((prev) => {
+      if (!prev[conversationId]) return prev;
+      const next = { ...prev };
+      delete next[conversationId];
+      return next;
+    });
+  }, []);
+
+  const markLoungeRead = useCallback((conversationId: string) => {
+    setLoungeUnread((prev) => {
       if (!prev[conversationId]) return prev;
       const next = { ...prev };
       delete next[conversationId];
@@ -94,17 +106,17 @@ export function SocketProvider({ enabled, currentUserId, children }: {
 
         if (data.type === "message") {
           const m = data.payload;
-          // Only count each unique message once.
           if (m.id && !seenMsgIds.current.has(m.id)) {
             seenMsgIds.current.add(m.id);
             const fromSelf = m.senderId === currentUserId;
             const inOpenChat = m.conversationId === activeConvRef.current;
             if (!fromSelf && !inOpenChat) {
-              recentlyRead.current.delete(m.conversationId); // new unread, allow counting
-              setUnread((prev) => ({
-                ...prev,
-                [m.conversationId]: (prev[m.conversationId] || 0) + 1,
-              }));
+              if (m.kind === "community") {
+                setLoungeUnread((prev) => ({ ...prev, [m.conversationId]: (prev[m.conversationId] || 0) + 1 }));
+              } else {
+                recentlyRead.current.delete(m.conversationId);
+                setUnread((prev) => ({ ...prev, [m.conversationId]: (prev[m.conversationId] || 0) + 1 }));
+              }
             }
           }
         }
@@ -132,6 +144,7 @@ export function SocketProvider({ enabled, currentUserId, children }: {
   }, [enabled, currentUserId]);
 
   const totalUnread = Object.values(unreadByConversation).reduce((a, b) => a + b, 0);
+  const totalLoungeUnread = Object.values(loungeUnread).reduce((a, b) => a + b, 0);
 
   return (
     <Ctx.Provider value={{ subscribe, unreadByConversation, totalUnread, markRead, setActiveConversation, seedUnread }}>

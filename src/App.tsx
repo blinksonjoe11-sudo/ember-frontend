@@ -16,6 +16,7 @@ interface OpenChat {
   conversationId: string;
   title: string;
   isGroup: boolean;
+  avatarUrl?: string;
 }
 
 function Shell() {
@@ -39,18 +40,19 @@ function Shell() {
 
   if (chat) {
     return (
-      <ChatScreen
+     <ChatScreen
         conversationId={chat.conversationId}
         title={chat.title}
         isGroup={chat.isGroup}
+        avatarUrl={chat.avatarUrl}
         onBack={() => setChat(null)}
       />
     );
   }
 
   // DMs call openChat(id, title). Lounges call openChat(id, title, true).
-  const openChat = (conversationId: string, title: string, isGroup = false) =>
-    setChat({ conversationId, title, isGroup });
+  const openChat = (conversationId: string, title: string, isGroup = false, avatarUrl?: string) =>
+    setChat({ conversationId, title, isGroup, avatarUrl }); 
 
   return (
     <div className="app">

@@ -386,7 +386,7 @@ a {
   max-width: 480px;
   margin: 0 auto;
   background: var(--bg);
-  overflow: hidden;          /* contain children, prevent whole-page shift */
+  overflow: hidden; /* contain children, prevent whole-page shift */
 }
 .chat-header {
   display: flex;
@@ -396,10 +396,10 @@ a {
   border-bottom: 1px solid var(--border-soft);
   background: rgba(14, 17, 18, 0.95);
   backdrop-filter: blur(12px);
-  position: sticky;          /* stays at top */
+  position: sticky; /* stays at top */
   top: 0;
   z-index: 10;
-  flex-shrink: 0;            /* never squish */
+  flex-shrink: 0; /* never squish */
 }
 .chat-back {
   width: 38px;
@@ -1048,4 +1048,22 @@ a {
     #000 calc(100% - 14px),
     transparent 100%
   );
+}
+.bubble-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.bubble-row.row-mine {
+  justify-content: flex-end;
+}
+.bubble-row.row-them {
+  justify-content: flex-start;
+}
+.bubble-row .avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+  border-radius: 10px;
 }

@@ -8,7 +8,7 @@ import { ApiError } from "../api/client";
 import { useCachedData } from "../lib/useCachedData";
 import SkeletonList from "../components/Skeleton";
 
-export default function ConnectScreen({ onOpenChat }: { onOpenChat: (id: string, name: string) => void }) {
+export default function ConnectScreen({ onOpenChat }: { onOpenChat: (id: string, name: string, isGroup?: boolean, avatarUrl?: string) => void }) {
   const { user } = useAuth();
   const toast = useToast();
 
@@ -52,7 +52,7 @@ export default function ConnectScreen({ onOpenChat }: { onOpenChat: (id: string,
     setOpening(target.id);
     try {
       const { conversationId } = await chatApi.start(target.id);
-      onOpenChat(conversationId, target.businessName || target.name);
+      onOpenChat(conversationId, target.businessName || target.name, false, target.avatarUrl);
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "Could not open chat.");
     } finally {

@@ -16,12 +16,14 @@ export interface User {
   plugStatus?: PlugStatus;
   businessName?: string;
   online?: boolean;
+  
 }
 
 export interface Conversation {
   id: string;
   partnerId: string;
   partnerName: string;
+  partnerAvatar?: string;
   lastMessage: string;
   unread?: number;
 }
@@ -43,6 +45,7 @@ export interface Message {
   replyToId?: string | null;
   replyBody?: string | null;
   replySender?: string | null;
+  senderAvatar?: string;
 }
 
 export interface Community {

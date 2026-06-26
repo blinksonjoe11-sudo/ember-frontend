@@ -6,7 +6,7 @@ import { useSocketCtx } from "../context/SocketContext";
 import { useCachedData } from "../lib/useCachedData";
 import SkeletonList from "../components/Skeleton";
 
-export default function MessagesScreen({ onOpenChat }: { onOpenChat: (id: string, name: string) => void }) {
+export default function MessagesScreen({ onOpenChat }: { onOpenChat: (id: string, name: string, isGroup?: boolean, avatarUrl?: string) => void }) {
     const { subscribe, unreadByConversation, seedUnread } = useSocketCtx();
 
    const { data: convs, firstLoad, refresh } = useCachedData<Conversation[]>(
@@ -39,8 +39,8 @@ export default function MessagesScreen({ onOpenChat }: { onOpenChat: (id: string
         convs.map((c) => {
           const unread = Math.max(c.unread || 0, unreadByConversation[c.id] || 0);
           return (
-            <button key={c.id} className="row" onClick={() => onOpenChat(c.id, c.partnerName)}>
-              <Avatar name={c.partnerName} />
+            <button key={c.id} className="row" onClick={() => { console.log("partnerAvatar:", c.partnerAvatar); onOpenChat(c.id, c.partnerName, false, c.partnerAvatar); }}>
+              <Avatar name={c.partnerName} url={c.partnerAvatar}/>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row-title">{c.partnerName}</div>
                 <div className="row-sub" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontWeight: unread ? 600 : 400, color: unread ? "var(--text-dim)" : "var(--muted)" }}>
