@@ -11,6 +11,7 @@ import ChatScreen from "./screens/ChatScreen";
 import TabBar, { Tab } from "./components/TabBar";
 import Logo from "./components/Logo";
 import { chatApi } from "./api/endpoints";
+import VoiceCall from "./components/VoiceCall";
 
 interface OpenChat {
   conversationId: string;
@@ -20,9 +21,34 @@ interface OpenChat {
 }
 
 function Shell() {
-   const [tab, setTab] = useState<Tab>("connect");
+  const [tab, setTab] = useState<Tab>("connect");
   const [chat, setChat] = useState<OpenChat | null>(null);
- const { totalUnread, totalLoungeUnread, seedUnread } = useSocketCtx();
+  const { totalUnread, totalLoungeUnread, seedUnread, subscribe } = useSocketCtx();
+
+  const [call, setCall] = useState<null | {
+    conversationId: string;
+    peerName: string;
+    mode: "outgoing" | "incoming";
+    offer?: any;
+  }>(null);
+
+  // Global incoming-call listener — works on any screen.
+  useEffect(() => {
+    return subscribe((e) => {
+      if (e.type === "call" && e.payload.signal === "offer") {
+        setCall((prev) =>
+          prev
+            ? prev
+            : {
+                conversationId: e.payload.conversationId,
+                peerName: e.payload.fromName || "Unknown",
+                mode: "incoming",
+                offer: e.payload.data,
+              }
+        );
+      }
+    });
+  }, [subscribe]);
 
   useEffect(() => {
     (async () => {
@@ -37,21 +63,38 @@ function Shell() {
     })();
   }, [seedUnread]);
 
+  const openChat = (conversationId: string, title: string, isGroup = false, avatarUrl?: string) =>
+    setChat({ conversationId, title, isGroup, avatarUrl });
+
+  // The call overlay must be able to render over BOTH the chat screen and the
+  // tab screens, so it lives outside the early return.
+  const callOverlay = call && (
+    <VoiceCall
+      conversationId={call.conversationId}
+      peerName={call.peerName}
+      mode={call.mode}
+      incomingOffer={call.offer}
+      onClose={() => setCall(null)}
+    />
+  );
+
   if (chat) {
     return (
-     <ChatScreen
-        conversationId={chat.conversationId}
-        title={chat.title}
-        isGroup={chat.isGroup}
-        avatarUrl={chat.avatarUrl}
-        onBack={() => setChat(null)}
-      />
+      <>
+        <ChatScreen
+          conversationId={chat.conversationId}
+          title={chat.title}
+          isGroup={chat.isGroup}
+          avatarUrl={chat.avatarUrl}
+          onStartCall={() =>
+            setCall({ conversationId: chat.conversationId, peerName: chat.title, mode: "outgoing" })
+          }
+          onBack={() => setChat(null)}
+        />
+        {callOverlay}
+      </>
     );
   }
-
-  // DMs call openChat(id, title). Lounges call openChat(id, title, true).
-  const openChat = (conversationId: string, title: string, isGroup = false, avatarUrl?: string) =>
-    setChat({ conversationId, title, isGroup, avatarUrl }); 
 
   return (
     <div className="app">
@@ -59,7 +102,10 @@ function Shell() {
       {tab === "messages" && <MessagesScreen onOpenChat={openChat} />}
       {tab === "lounge" && <LoungeScreen onOpenChat={openChat} />}
       {tab === "profile" && <ProfileScreen />}
-     <TabBar active={tab} onChange={setTab} unread={totalUnread} loungeUnread={totalLoungeUnread} />
+
+      {callOverlay}
+
+      <TabBar active={tab} onChange={setTab} unread={totalUnread} loungeUnread={totalLoungeUnread} />
     </div>
   );
 }

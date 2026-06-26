@@ -7,11 +7,15 @@ import { useToast } from "../context/ToastContext";
 import Avatar from "../components/Avatar";
 import VoiceNote from "../components/VoiceNote";
 
+
+
+
 interface Props {
   conversationId: string;
   title: string;
   isGroup?: boolean;
   avatarUrl?: string;
+  onStartCall?: () => void;
   onBack: () => void;
 }
 
@@ -72,7 +76,7 @@ function recordingText(recorders: Record<string, string>, isGroup: boolean): str
   return "Several people are recording…";
 }
 
-export default function ChatScreen({ conversationId, title, isGroup = false, avatarUrl, onBack }: Props) {
+export default function ChatScreen({ conversationId, title, isGroup = false, avatarUrl, onStartCall, onBack }: Props) {
 
 
   const { user } = useAuth();
@@ -106,6 +110,11 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
   const recorderTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [kbOffset, setKbOffset] = useState(0);
   const [pressedId, setPressedId] = useState<string | null>(null);
+  
+
+
+
+
 
   const scrollDown = () => {
     requestAnimationFrame(() => {
@@ -217,6 +226,8 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
           prev.map((m) => (m.id === e.payload.messageId ? { ...m, deletedForEveryone: true, body: "" } : m))
         );
       }
+
+     
 
       if (e.type === "message_edited" && e.payload.conversationId === conversationId) {
         setMessages((prev) =>
@@ -580,8 +591,11 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
             <div style={{ fontSize: 12, color: "var(--accent)" }}>{typingText(typers, isGroup)}</div>
           ) : null}
         </div>
-        <div style={{ position: "relative" }}>
+        <div style={{ position: "relative", display: "flex", gap: 5 }}>
           <button className="chat-back" onClick={() => setHeaderMenu((v) => !v)} aria-label="Menu">⋯</button>
+          {!isGroup && (
+          <button className="chat-back" onClick={onStartCall} aria-label="Call">📞</button>
+        )}
           {headerMenu && (
             <>
               <div className="menu-backdrop" onClick={() => setHeaderMenu(false)} />
@@ -771,7 +785,11 @@ export default function ChatScreen({ conversationId, title, isGroup = false, ava
                 <button className="chat-send" onClick={startRecording} disabled={uploading} aria-label="Record">
                   🎤
                 </button>
+                
               )}
+               {/* <button onClick={() => callApi.signal(conversationId, "offer", { test: 123 })}>
+          📞test
+        </button> */}
             </>
           )}
         </div>

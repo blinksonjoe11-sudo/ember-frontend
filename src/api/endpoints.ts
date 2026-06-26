@@ -167,3 +167,10 @@ export const friendsApi = {
 
   list: () => api<{ friends: User[] }>("/api/friends"),
 };
+
+
+export const callApi = {
+  signal: (conversationId: string, signal: string, data?: any) =>
+    api(`/api/call/signal`, { method: "POST", body: { conversationId, signal, data } }),
+  turn: () => api<RTCIceServer[]>(`/api/call/turn`),
+};
