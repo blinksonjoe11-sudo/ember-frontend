@@ -33,7 +33,7 @@ export function SocketProvider({ enabled, currentUserId, children }: {
   // Dedupe: a given message id is only ever counted once, no matter how many
   // times the frame arrives (StrictMode re-mounts, reconnect replays, etc).
   const seenMsgIds = useRef<Set<string>>(new Set());
-
+  const recentlyRead = useRef<Set<string>>(new Set());
   const [unreadByConversation, setUnread] = useState<Record<string, number>>({});
 
   const subscribe = useCallback((fn: Listener) => {
@@ -42,6 +42,7 @@ export function SocketProvider({ enabled, currentUserId, children }: {
   }, []);
 
   const markRead = useCallback((conversationId: string) => {
+    recentlyRead.current.add(conversationId);
     setUnread((prev) => {
       if (!prev[conversationId]) return prev;
       const next = { ...prev };
@@ -56,11 +57,12 @@ export function SocketProvider({ enabled, currentUserId, children }: {
     setUnread((prev) => {
       const next = { ...prev };
       for (const [id, n] of Object.entries(counts)) {
+        if (recentlyRead.current.has(id)) continue; // don't resurrect a read chat
         next[id] = Math.max(prev[id] || 0, n);
       }
       return next;
     });
-  }, []);
+  }, []); 
 
   const setActiveConversation = useCallback((id: string | null) => {
     activeConvRef.current = id;
@@ -98,6 +100,7 @@ export function SocketProvider({ enabled, currentUserId, children }: {
             const fromSelf = m.senderId === currentUserId;
             const inOpenChat = m.conversationId === activeConvRef.current;
             if (!fromSelf && !inOpenChat) {
+              recentlyRead.current.delete(m.conversationId); // new unread, allow counting
               setUnread((prev) => ({
                 ...prev,
                 [m.conversationId]: (prev[m.conversationId] || 0) + 1,
