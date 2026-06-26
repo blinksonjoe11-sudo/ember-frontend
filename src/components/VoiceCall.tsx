@@ -31,6 +31,8 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
   const startedRef = useRef(false);
   const ringRef = useRef<{ stop: () => void } | null>(null);
   const facingRef = useRef<"user" | "environment">("user");
+    const remoteStreamRef = useRef<MediaStream | null>(null);
+    const resendRef = useRef<ReturnType<typeof setInterval>>();
 
   const startRinging = (kind: "incoming" | "outgoing") => {
     stopRinging();
@@ -66,6 +68,13 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
+  useEffect(() => {
+    if (state === "connected" && isVideo && remoteVideoRef.current && remoteStreamRef.current) {
+      remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      remoteVideoRef.current.play().catch(() => {});
+    }
+  }, [state, isVideo]);
+
   const createPeer = async () => {
     let iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
     try {
@@ -81,14 +90,16 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     };
 
     pc.ontrack = (e) => {
+      console.log("ONTRACK:", e.track.kind, "streams:", e.streams.length);
       const [stream] = e.streams;
-      if (remoteVideoRef.current && isVideo) {
-        remoteVideoRef.current.srcObject = stream;
-        remoteVideoRef.current.play().catch(() => {});
-      }
+      remoteStreamRef.current = stream;
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = stream;
         remoteAudioRef.current.play().catch(() => {});
+      }
+      if (remoteVideoRef.current && isVideo) {
+        remoteVideoRef.current.srcObject = stream;
+        remoteVideoRef.current.play().catch((err) => console.log("remote play fail:", err));
       }
     };
 
@@ -120,16 +131,7 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     const pc = await createPeer();
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    const send = () => callApi.signal(conversationId, "offer", { sdp: offer, callType }).catch(() => {});
-    send();
-    // Re-send the offer every 3s while still ringing, so a callee who just
-    // opened the app (from a push) still receives it.
-    const resend = setInterval(() => {
-      if (pcRef.current?.connectionState === "connected") { clearInterval(resend); return; }
-      send();
-    }, 3000);
-    // stop after 45s (call timed out)
-    setTimeout(() => clearInterval(resend), 45000);
+    callApi.signal(conversationId, "offer", { sdp: offer, callType }).catch(() => {});
   };
 
   const acceptCall = async () => {
@@ -137,7 +139,6 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
     startedRef.current = true;
     try {
       const pc = await createPeer();
-      // incomingOffer may be {sdp, callType} or a raw SDP (back-compat).
       const sdp = incomingOffer?.sdp || incomingOffer;
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       for (const c of pendingIce.current) await pc.addIceCandidate(c).catch(() => {});
@@ -145,11 +146,16 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       callApi.signal(conversationId, "answer", answer).catch(() => {});
-    } catch (err) { /* ignore */ }
+      console.log("ACCEPT video: answer sent");
+    } catch (err) {
+      console.error("ACCEPT FAILED:", err);   // ← expose the error
+      startedRef.current = false;             // ← allow retry
+    }
   };
 
-  const endCall = (notify = true) => {
+ const endCall = (notify = true) => {
     stopRinging();
+    clearInterval(resendRef.current);
     if (notify) callApi.signal(conversationId, "end", null).catch(() => {});
     clearInterval(timerRef.current);
     pcRef.current?.close();
@@ -229,7 +235,6 @@ export default function VoiceCall({ conversationId, peerName, mode, callType, in
           <video ref={localVideoRef} className="call-local-video" autoPlay playsInline muted />
         </>
       )}
-      {/* keep a hidden local preview element alive before connect so flip works */}
       {isVideo && state !== "connected" && (
         <video ref={localVideoRef} className="call-local-video" autoPlay playsInline muted />
       )}
